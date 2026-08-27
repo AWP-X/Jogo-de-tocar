@@ -225,6 +225,31 @@ def draw_button(rect, label, mouse_pos, key, dt, enabled=True, focused=False, ic
         draw_text(label, display.font_button, grown.centerx, grown.centery, center=True, color=label_color)
 
 
+def draw_help_button(rect, mouse_pos, key, dt, focused=False):
+    """Botao circular de ajuda ("?") no canto do menu - abre a tela Como Jogar.
+    Usa texto simples ('?' e um caractere ASCII comum, ao contrario de simbolos
+    como estrela que faltam em algumas fontes do sistema) em vez de um icone."""
+    hovering = rect.collidepoint(mouse_pos) or focused
+    if hovering and not _was_hovering.get(key, False):
+        audio.play(audio.hover_sound)
+    _was_hovering[key] = hovering
+
+    t = _hover_progress(key, hovering, dt)
+    r = rect.width // 2 + int(3 * t)
+    center = rect.center
+
+    shadow_r = r + 2
+    shadow = pygame.Surface((shadow_r * 2, shadow_r * 2), pygame.SRCALPHA)
+    pygame.draw.circle(shadow, (0, 0, 0, 90), (shadow_r, shadow_r), shadow_r)
+    canvas.blit(shadow, (center[0] - shadow_r, center[1] - shadow_r + 3))
+
+    color = _lerp_color(config.BTN_NORMAL, config.BTN_HOVER, t)
+    pygame.draw.circle(canvas, color, center, r)
+    if t > 0.01:
+        pygame.draw.circle(canvas, config.ACCENT, center, r, max(1, int(2 * t)))
+    draw_text("?", display.font_button, center[0], center[1] - 1, center=True, color=config.WHITE)
+
+
 def draw_tab(rect, label, mouse_pos, key, dt, active, focused=False):
     """Item de aba (estilo sublinhado), usado no topo do painel de Opcoes."""
     hovering = rect.collidepoint(mouse_pos) or focused

@@ -23,6 +23,7 @@ DEFAULT_KEYS = {
 
 settings = {
     "volume": 0.5,
+    "music_volume": 0.4,   # separado do volume de efeitos (SFX) - musica fica de fundo
     "muted": False,
     "sensibilidade": 1.0,
     "keys": dict(DEFAULT_KEYS),
@@ -30,6 +31,7 @@ settings = {
     "mode": "windowed",
     "show_fps": False,
     "difficulty": "normal",
+    "seen_tutorial": False,   # controla se a tela "Como Jogar" ja apareceu uma vez
 }
 
 resolutions = [(1280, 720), (1024, 768), (800, 600)]
@@ -39,6 +41,7 @@ mode_index = 0
 
 rebinding = None
 dragging_volume = False
+dragging_music = False
 dragging_sens = False
 nav_index = 0    # item selecionado via teclado (setas) nas telas de botao
 menu_time = 0.0  # acumulador de tempo p/ animacoes ambientes (brilho pulsante etc.)
@@ -48,6 +51,10 @@ name_input = ""  # texto sendo digitado na tela de "novo recorde"
 # onde o botao VOLTAR (e o ESC) deve mandar o jogador de volta.
 options_return_to = "menu"
 options_tab = "audio"
+
+# Mesma ideia da tela "Como Jogar" (aberta pelo botao de ajuda no menu, ou
+# automaticamente na primeira vez que o jogo abre) - pra onde voltar ao fechar.
+tutorial_return_to = "menu"
 
 # Animacao de "entrar no portal" ao clicar num mundo (None = nao esta rolando).
 # Enquanto ativa, a tela continua em "world_select" - so o desenho e os
@@ -76,6 +83,8 @@ def load_settings():
 
     if isinstance(data.get("volume"), (int, float)):
         settings["volume"] = max(0.0, min(1.0, float(data["volume"])))
+    if isinstance(data.get("music_volume"), (int, float)):
+        settings["music_volume"] = max(0.0, min(1.0, float(data["music_volume"])))
     if isinstance(data.get("muted"), bool):
         settings["muted"] = data["muted"]
     if isinstance(data.get("sensibilidade"), (int, float)):
@@ -101,6 +110,8 @@ def load_settings():
         settings["show_fps"] = data["show_fps"]
     if data.get("difficulty") in config.DIFFICULTY_ORDER:
         settings["difficulty"] = data["difficulty"]
+    if isinstance(data.get("seen_tutorial"), bool):
+        settings["seen_tutorial"] = data["seen_tutorial"]
 
 
 def save_settings():
@@ -108,6 +119,7 @@ def save_settings():
         with open(SETTINGS_FILE, "w") as f:
             json.dump({
                 "volume": settings["volume"],
+                "music_volume": settings["music_volume"],
                 "muted": settings["muted"],
                 "sensibilidade": settings["sensibilidade"],
                 "keys": settings["keys"],
@@ -115,6 +127,7 @@ def save_settings():
                 "mode": settings["mode"],
                 "show_fps": settings["show_fps"],
                 "difficulty": settings["difficulty"],
+                "seen_tutorial": settings["seen_tutorial"],
             }, f, indent=2)
     except Exception:
         pass   # sem permissao de escrita ou disco cheio: o jogo segue normalmente
@@ -213,7 +226,14 @@ PROGRESS_FILE = os.path.join(config.PROJECT_ROOT, "progress.json")
 
 
 def load_progress():
-    result = {w: {"unlocked": 1, "stars": [0] * len(config.WORLDS[w]["levels"])} for w in config.WORLD_ORDER}
+    result = {
+        w: {
+            "unlocked": 1,
+            "stars": [0] * len(config.WORLDS[w]["levels"]),
+            "best_time": [None] * len(config.WORLDS[w]["levels"]),   # None = ainda nao concluida
+        }
+        for w in config.WORLD_ORDER
+    }
     try:
         with open(PROGRESS_FILE, "r") as f:
             data = json.load(f)
@@ -231,6 +251,11 @@ def load_progress():
                 for i in range(min(total, len(stars))):
                     if isinstance(stars[i], int) and 0 <= stars[i] <= 3:
                         result[world_id]["stars"][i] = stars[i]
+            if isinstance(entry, dict) and isinstance(entry.get("best_time"), list):
+                times = entry["best_time"]
+                for i in range(min(total, len(times))):
+                    if isinstance(times[i], (int, float)) and times[i] > 0:
+                        result[world_id]["best_time"][i] = float(times[i])
     return result
 
 
@@ -260,4 +285,14 @@ def record_level_stars(world_id, level_num, stars):
     stars_list = progress[world_id]["stars"]
     if idx < len(stars_list) and stars > stars_list[idx]:
         stars_list[idx] = stars
+        save_progress()
+
+
+def record_level_time(world_id, level_num, elapsed):
+    """Guarda o MELHOR tempo (em segundos, menor e melhor) ja conseguido numa
+    fase - so grava se for a primeira vez ou se bateu o recorde anterior."""
+    idx = level_num - 1
+    times = progress[world_id]["best_time"]
+    if idx < len(times) and (times[idx] is None or elapsed < times[idx]):
+        times[idx] = round(elapsed, 2)
         save_progress()

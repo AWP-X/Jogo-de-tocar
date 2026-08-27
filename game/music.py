@@ -154,7 +154,7 @@ def _tier_for_level(level_num):
 
 
 def _music_volume():
-    return 0.0 if state.settings["muted"] else state.settings["volume"] * 0.5
+    return 0.0 if state.settings["muted"] else state.settings["music_volume"]
 
 
 def play_world_music(world_id, level_num=None):

@@ -27,7 +27,10 @@ PLAYER_SPEED = 300
 PLAYER_START_SIZE = 20
 PLAYER_MAX_SIZE = 40
 ENEMY_SIZE = 40
-ATTACK_RADIUS = 20
+ATTACK_RADIUS = 16          # um pouco menor que antes (era 20) - exige mais precisao
+ATTACK_COOLDOWN = 0.22      # segundos de "recarga" apos cada golpe - sem isso, encostar o
+                            # mouse num inimigo matava instantaneo e sem risco nenhum; agora
+                            # da pra limpar um aglomerado inteiro num so frame
 
 # Dificuldade: cada nivel ajusta vidas iniciais, velocidade dos inimigos (base e
 # incremento por progressao) e o teto de inimigos simultaneos.
@@ -94,8 +97,9 @@ SLIDER_BG    = (50, 48, 70)
 # Sliders (usada pra desenhar E pra detectar clique/arraste)
 SLIDER_X = 300
 SLIDER_W = 450
-VOLUME_Y = 250
-SENS_Y   = 360
+VOLUME_Y = 230        # volume dos efeitos (SFX)
+MUSIC_VOL_Y = 300     # volume da musica de fundo - separado do SFX
+SENS_Y   = 390
 
 # Abas do painel de Opcoes
 OPTIONS_TABS = ["audio", "controles", "video", "ranking", "creditos"]

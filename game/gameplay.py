@@ -9,6 +9,10 @@ from . import state
 
 
 def update_gameplay(run, mouse_pos, dt):
+    run["elapsed"] += dt
+    if run["attack_cooldown"] > 0:
+        run["attack_cooldown"] = max(0.0, run["attack_cooldown"] - dt)
+
     # Movimento do jogador
     keys = pygame.key.get_pressed()
     speed = config.PLAYER_SPEED * state.settings["sensibilidade"] * dt
@@ -33,7 +37,8 @@ def update_gameplay(run, mouse_pos, dt):
     for enemy in run["enemies"][:]:
         enemy.update(run["player"], dt)
 
-        if attack_rect.colliderect(enemy.rect):
+        if run["attack_cooldown"] <= 0 and attack_rect.colliderect(enemy.rect):
+            run["attack_cooldown"] = config.ATTACK_COOLDOWN
             hit_pos = pygame.Vector2(enemy.rect.center)
             enemy.respawn(run["enemy_speed"])
             old_score = run["score"]

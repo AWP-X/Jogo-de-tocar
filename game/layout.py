@@ -24,6 +24,16 @@ def difficulty_button():
     return pygame.Rect(x, y, w, h)
 
 
+def menu_help_button():
+    """Botao circular de ajuda ("?"), no canto - abre a tela Como Jogar sem
+    bagunçar a fila vertical dos botoes principais do menu."""
+    return pygame.Rect(config.WIDTH - 74, 24, 50, 50)
+
+
+def tutorial_button():
+    return pygame.Rect(config.WIDTH // 2 - 150, 640, 300, 50)
+
+
 # ---- Modo Historia: selecao de mundo (portais circulares) e de nivel (trilha) ----
 def historia_voltar_button():
     return pygame.Rect(config.WIDTH // 2 - 150, 655, 300, 50)
@@ -85,10 +95,10 @@ def level_select_buttons(world_id):
 
 def level_complete_buttons(is_last):
     if is_last:
-        return {"menu": pygame.Rect(config.WIDTH // 2 - 150, 420, 300, 50)}
+        return {"menu": pygame.Rect(config.WIDTH // 2 - 150, 440, 300, 50)}
     return {
-        "next": pygame.Rect(config.WIDTH // 2 - 150, 380, 300, 50),
-        "menu": pygame.Rect(config.WIDTH // 2 - 150, 450, 300, 50),
+        "next": pygame.Rect(config.WIDTH // 2 - 150, 400, 300, 50),
+        "menu": pygame.Rect(config.WIDTH // 2 - 150, 470, 300, 50),
     }
 
 
@@ -109,7 +119,7 @@ def audio_buttons():
     w, h, gap = 220, 50, 20
     total = w * 2 + gap
     x0 = config.WIDTH // 2 - total // 2
-    y = 440
+    y = 470
     return {
         "mute": pygame.Rect(x0, y, w, h),
         "test": pygame.Rect(x0 + w + gap, y, w, h),
@@ -160,7 +170,10 @@ def nav_items_for(current_state):
     if current_state == "menu":
         items = [("difficulty", difficulty_button())]
         items += list(menu_buttons().items())
+        items.append(("help", menu_help_button()))
         return items
+    if current_state == "tutorial":
+        return [("entendi", tutorial_button())]
     if current_state == "options":
         items = [(f"tab_{k}", r) for k, r in options_tab_buttons().items()]
         if state.options_tab == "audio":

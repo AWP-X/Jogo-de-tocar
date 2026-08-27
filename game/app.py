@@ -18,7 +18,13 @@ from . import state
 def main():
     display.apply_video()   # aplica resolucao/modo salvos (se houver) antes de abrir o menu
 
-    current_state = "menu"
+    # Primeira vez que o jogo abre: mostra "Como Jogar" antes do menu, ja que o
+    # ataque por proximidade do mouse nao e obvio sem alguem explicar.
+    if state.settings["seen_tutorial"]:
+        current_state = "menu"
+    else:
+        current_state = "tutorial"
+        state.tutorial_return_to = "menu"
     prev_state = current_state
     run = entities.new_run()
     running = True
@@ -61,6 +67,17 @@ def main():
                 elif b["quit"].collidepoint(pos):
                     running = False
                     acted = True
+                elif layout.menu_help_button().collidepoint(pos):
+                    state.tutorial_return_to = "menu"
+                    current_state = "tutorial"
+                    acted = True
+
+        elif current_state == "tutorial":
+            if layout.tutorial_button().collidepoint(pos):
+                state.settings["seen_tutorial"] = True
+                state.save_settings()
+                current_state = state.tutorial_return_to
+                acted = True
 
         elif current_state == "world_select":
             if layout.historia_voltar_button().collidepoint(pos):
@@ -129,6 +146,7 @@ def main():
                     if b["mute"].collidepoint(pos):
                         state.settings["muted"] = not state.settings["muted"]
                         state.save_settings()
+                        music.update_music_volume()
                         acted = True
                     elif b["test"].collidepoint(pos):
                         audio.play(audio.hit_sound)
@@ -244,6 +262,10 @@ def main():
                     current_state = "playing"
                 elif current_state == "options":
                     current_state = state.options_return_to
+                elif current_state == "tutorial":
+                    state.settings["seen_tutorial"] = True
+                    state.save_settings()
+                    current_state = state.tutorial_return_to
                 elif current_state == "world_select":
                     current_state = "menu"
                 elif current_state == "level_select":
@@ -270,15 +292,19 @@ def main():
                     if (abs(mouse_pos[1] - config.VOLUME_Y) < 20
                             and config.SLIDER_X <= mouse_pos[0] <= config.SLIDER_X + config.SLIDER_W):
                         state.dragging_volume = True
+                    if (abs(mouse_pos[1] - config.MUSIC_VOL_Y) < 20
+                            and config.SLIDER_X <= mouse_pos[0] <= config.SLIDER_X + config.SLIDER_W):
+                        state.dragging_music = True
                     if (abs(mouse_pos[1] - config.SENS_Y) < 20
                             and config.SLIDER_X <= mouse_pos[0] <= config.SLIDER_X + config.SLIDER_W):
                         state.dragging_sens = True
                 activate(mouse_pos)
 
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-                if state.dragging_volume or state.dragging_sens:
+                if state.dragging_volume or state.dragging_music or state.dragging_sens:
                     state.save_settings()
                 state.dragging_volume = False
+                state.dragging_music = False
                 state.dragging_sens = False
 
         # O foco de teclado acompanha o mouse, mas so quando ele de fato se move -
@@ -297,6 +323,9 @@ def main():
         if current_state == "options" and state.options_tab == "audio":
             if state.dragging_volume:
                 state.settings["volume"] = max(0.0, min(1.0, (mouse_pos[0] - config.SLIDER_X) / config.SLIDER_W))
+            if state.dragging_music:
+                state.settings["music_volume"] = max(0.0, min(1.0, (mouse_pos[0] - config.SLIDER_X) / config.SLIDER_W))
+                music.update_music_volume()   # da pra ouvir o ajuste na hora se ja tiver musica tocando
             if state.dragging_sens:
                 state.settings["sensibilidade"] = max(
                     0.1, min(3.0, (mouse_pos[0] - config.SLIDER_X) / config.SLIDER_W * 3))
@@ -318,6 +347,7 @@ def main():
                 state.unlock_level(state.current_world, state.current_level)
                 state.record_level_stars(state.current_world, state.current_level,
                                           entities.compute_stars(run))
+                state.record_level_time(state.current_world, state.current_level, run["elapsed"])
                 current_state = "level_complete"
 
             elif run["lives"] <= 0:
@@ -347,6 +377,8 @@ def main():
         # --------------- DRAW ---------------
         if current_state == "menu":
             screens.draw_menu(mouse_pos, dt)
+        elif current_state == "tutorial":
+            screens.draw_tutorial(mouse_pos, dt)
         elif current_state == "options":
             screens.draw_options(mouse_pos, dt)
         elif current_state == "world_select":

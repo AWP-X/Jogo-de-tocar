@@ -33,6 +33,7 @@ class Enemy:
         self.speed = speed
         self.kind = kind
         self.age = random.uniform(0, 10)   # desfasa o zigue-zague entre inimigos
+        self.last_dir = pygame.Vector2(0, -1)   # usado pro triangulo do "fast" apontar pro lado que anda
 
     @property
     def size(self):
@@ -62,12 +63,32 @@ class Enemy:
             if direction.length_squared() > 0:
                 direction.normalize_ip()
 
+        self.last_dir = direction
         speed = self.speed * 1.15 if self.kind == "fast" else self.speed
         self.pos += direction * speed * dt
 
     def draw(self, surface):
+        """Cada variante tem uma silhueta propria (nao so a cor muda) - da pra
+        reconhecer o tipo de longe, mesmo sem prestar atencao na cor."""
         color = config.ENEMY_VARIANT_COLORS.get(self.kind, config.ENEMY_COLOR)
-        pygame.draw.rect(surface, color, self.rect)
+        cx, cy = self.rect.center
+        half = self.size / 2
+
+        if self.kind == "zigzag":
+            # Losango: sugere o serpenteio lateral tao logo se olha pra forma.
+            pts = [(cx, cy - half), (cx + half, cy), (cx, cy + half), (cx - half, cy)]
+            pygame.draw.polygon(surface, color, pts)
+        elif self.kind == "fast":
+            # Triangulo apontando pra direcao real do movimento - reforca a
+            # sensacao de velocidade/agilidade.
+            d = self.last_dir if self.last_dir.length_squared() > 0 else pygame.Vector2(0, -1)
+            perp = pygame.Vector2(-d.y, d.x)
+            tip = (cx + d.x * half * 1.3, cy + d.y * half * 1.3)
+            back_l = (cx - d.x * half * 0.7 + perp.x * half * 0.85, cy - d.y * half * 0.7 + perp.y * half * 0.85)
+            back_r = (cx - d.x * half * 0.7 - perp.x * half * 0.85, cy - d.y * half * 0.7 - perp.y * half * 0.85)
+            pygame.draw.polygon(surface, color, [tip, back_l, back_r])
+        else:
+            pygame.draw.rect(surface, color, self.rect)
 
 
 def _random_kind(enemy_kinds):
@@ -102,8 +123,10 @@ def new_run(target_score=None, world=None, level_num=None, enemy_kinds=None):
         "world": world,
         "level_num": level_num,
         "enemy_kinds": kinds,
-        "combo": 0,          # acertos seguidos em GREAT/PERFECT (ver config.COMBO_*)
-        "hit_popups": [],    # textos flutuantes de "PERFECT!"/"GREAT!"/etc.
+        "combo": 0,             # acertos seguidos em GREAT/PERFECT (ver config.COMBO_*)
+        "hit_popups": [],       # textos flutuantes de "PERFECT!"/"GREAT!"/etc.
+        "attack_cooldown": 0.0, # segundos ate poder acertar outro golpe (ver config.ATTACK_COOLDOWN)
+        "elapsed": 0.0,         # tempo de partida em segundos (usado no melhor tempo por fase)
     }
 
 

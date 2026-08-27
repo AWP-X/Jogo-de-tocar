@@ -38,8 +38,51 @@ def draw_menu(mouse_pos, dt):
         visuals.draw_button(rect, config.MENU_LABELS[key], mouse_pos, f"menu_{key}", dt,
                              focused=(i + 1 == state.nav_index), icon=config.MENU_ICONS[key])
 
+    help_rect = layout.menu_help_button()
+    help_focused = (state.nav_index == len(layout.menu_buttons()) + 1)
+    visuals.draw_help_button(help_rect, mouse_pos, "menu_help", dt, focused=help_focused)
+
     visuals.draw_text("Setas + Enter, ou mouse", display.font_small, 20, config.HEIGHT - 32, color=config.TEXT_MUTED)
     visuals.draw_text("v1.0", display.font_small, config.WIDTH - 55, config.HEIGHT - 32, color=config.TEXT_MUTED)
+
+
+def draw_tutorial(mouse_pos, dt):
+    """Tela 'Como Jogar' - aparece sozinha na primeira vez que o jogo abre, e
+    pode ser reaberta a qualquer momento pelo botao de ajuda no menu."""
+    canvas.blit(visuals.MENU_BG_SURF, (0, 0))
+    visuals.update_particles(dt)
+    visuals.draw_particles(canvas)
+
+    visuals.draw_text("COMO JOGAR", display.font_big, config.WIDTH // 2, 90, center=True, shadow=True)
+
+    panel_rect = pygame.Rect(190, 150, 900, 430)
+    visuals.draw_panel(panel_rect)
+
+    lines = [
+        ("Mova-se com WASD (ou as teclas configuradas em Opcoes > Controles).", config.WHITE),
+        ("O ataque e automatico: chegue perto de um inimigo com o MOUSE para acerta-lo.", config.WHITE),
+        ("", None),
+        ("MODO HISTORIA: acerte no tempo da musica para ganhar mais pontos por golpe -",
+         config.TEXT_MUTED),
+        ("do pior pro melhor: Trash, OK, Normal, Great e Perfect.", config.TEXT_MUTED),
+        ("Golpes seguidos em Great/Perfect constroem um COMBO, que multiplica ainda mais.",
+         config.TEXT_MUTED),
+        ("", None),
+        ("MODO ARCADE: pontuacao simples (sem musica nem bonus de ritmo) - e o modo livre",
+         config.TEXT_MUTED),
+        ("para treinar ou so relaxar; o ritmo fica reservado ao Modo Historia.",
+         config.TEXT_MUTED),
+        ("", None),
+        ("ESC pausa a qualquer momento durante uma partida.", config.WHITE),
+    ]
+    y = panel_rect.top + 36
+    for text, color in lines:
+        if text:
+            visuals.draw_text(text, display.font_small, config.WIDTH // 2, y, center=True, color=color)
+        y += 34
+
+    visuals.draw_button(layout.tutorial_button(), "ENTENDI", mouse_pos, "tutorial_entendi", dt,
+                         focused=(0 == state.nav_index))
 
 
 def draw_options(mouse_pos, dt):
@@ -62,10 +105,17 @@ def draw_options(mouse_pos, dt):
     visuals.draw_panel(panel_rect)
 
     if state.options_tab == "audio":
-        visuals.draw_text("VOLUME", display.font_small, config.SLIDER_X, config.VOLUME_Y - 30, color=config.TEXT_MUTED)
+        visuals.draw_text("VOLUME (EFEITOS)", display.font_small, config.SLIDER_X, config.VOLUME_Y - 30,
+                           color=config.TEXT_MUTED)
         visuals.draw_slider(state.settings["volume"], config.SLIDER_X, config.VOLUME_Y, config.SLIDER_W)
         vol_text = "Mudo" if state.settings["muted"] else f"{int(state.settings['volume'] * 100)}%"
         visuals.draw_text(vol_text, display.font, config.SLIDER_X + config.SLIDER_W + 20, config.VOLUME_Y - 12)
+
+        visuals.draw_text("VOLUME (MUSICA)", display.font_small, config.SLIDER_X, config.MUSIC_VOL_Y - 30,
+                           color=config.TEXT_MUTED)
+        visuals.draw_slider(state.settings["music_volume"], config.SLIDER_X, config.MUSIC_VOL_Y, config.SLIDER_W)
+        music_vol_text = "Mudo" if state.settings["muted"] else f"{int(state.settings['music_volume'] * 100)}%"
+        visuals.draw_text(music_vol_text, display.font, config.SLIDER_X + config.SLIDER_W + 20, config.MUSIC_VOL_Y - 12)
 
         visuals.draw_text("SENSIBILIDADE", display.font_small, config.SLIDER_X, config.SENS_Y - 30, color=config.TEXT_MUTED)
         visuals.draw_slider(state.settings["sensibilidade"] / 3, config.SLIDER_X, config.SENS_Y, config.SLIDER_W)
@@ -197,7 +247,13 @@ def draw_gameplay(run, attack_pos):
     radius = config.ATTACK_RADIUS
     if strength is not None:
         radius = int(config.ATTACK_RADIUS * (1.0 + 0.5 * strength))
-    pygame.draw.circle(canvas, config.ATTACK_COLOR, (int(attack_pos.x), int(attack_pos.y)), radius)
+
+    # Enquanto o golpe esta "recarregando" (ver config.ATTACK_COOLDOWN), a mira
+    # fica visivelmente apagada - deixa claro que encostar no inimigo agora
+    # nao vai render outro acerto instantaneo.
+    on_cooldown = run.get("attack_cooldown", 0) > 0
+    attack_color = config.SLIDER_BG if on_cooldown else config.ATTACK_COLOR
+    pygame.draw.circle(canvas, attack_color, (int(attack_pos.x), int(attack_pos.y)), radius)
 
     for popup in run.get("hit_popups", []):
         t = popup["age"] / entities.POPUP_LIFETIME
@@ -395,6 +451,10 @@ def draw_level_select(mouse_pos, dt):
             stars = state.progress[state.current_world]["stars"][level_num - 1]
             if stars > 0:
                 visuals.draw_star_rating((pos[0], oy + r + 24), stars, size=8, gap=4)
+                best_time = state.progress[state.current_world]["best_time"][level_num - 1]
+                if best_time is not None:
+                    visuals.draw_text(f"{best_time:.1f}s", display.font_small, pos[0], oy + r + 44,
+                                       center=True, color=config.TEXT_MUTED)
             else:
                 target = world["levels"][level_num - 1]["target"]
                 visuals.draw_text(f"{target}pts", display.font_small, pos[0], oy + r + 20,
@@ -425,6 +485,19 @@ def draw_level_complete(mouse_pos, run, dt):
     visuals.draw_star_rating((config.WIDTH // 2, 275), stars, size=22, gap=14)
     visuals.draw_text(f"Pontuacao: {run['score']}", display.font, config.WIDTH // 2, 335,
                        center=True, color=config.TEXT_MUTED)
+
+    elapsed = run.get("elapsed", 0.0)
+    best_time = state.progress[state.current_world]["best_time"][state.current_level - 1]
+    if best_time is not None and elapsed <= best_time + 0.005:
+        time_label = f"Tempo: {elapsed:.1f}s - NOVO RECORDE!"
+        time_color = config.ACCENT
+    elif best_time is not None:
+        time_label = f"Tempo: {elapsed:.1f}s  (recorde: {best_time:.1f}s)"
+        time_color = config.TEXT_MUTED
+    else:
+        time_label = f"Tempo: {elapsed:.1f}s"
+        time_color = config.TEXT_MUTED
+    visuals.draw_text(time_label, display.font_small, config.WIDTH // 2, 365, center=True, color=time_color)
 
     labels = {"next": "PROXIMO NIVEL", "menu": "MENU"}
     for i, (key, rect) in enumerate(layout.level_complete_buttons(is_last).items()):
