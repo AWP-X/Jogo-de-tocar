@@ -112,6 +112,13 @@ OPTIONS_TAB_LABELS = {
 # Cada mundo toca um genero musical diferente. Por enquanto so existe o Jazzy;
 # a lista foi pensada pra crescer (Rock, Eletronico, etc.) sem precisar mexer
 # em nada alem de acrescentar uma entrada aqui.
+#
+# Dentro do Jazzy, cada FASE e um ano marcante da historia do jazz (em ordem
+# cronologica - a viagem no tempo acompanha a propria curva de dificuldade) e
+# toca um estilo musical ORIGINAL proprio (nunca a gravacao real - so uma
+# composicao inspirada na pegada daquela epoca, ver game/music.py). "year"/
+# "era" sao so texto pra mostrar na tela; "style" e a chave que escolhe qual
+# perfil de composicao usar.
 WORLDS = {
     "jazzy": {
         "name": "Jazzy",
@@ -125,16 +132,26 @@ WORLDS = {
         # aparecer nele (indice 0 = nivel 1) - vai introduzindo variedade aos
         # poucos em vez de todo nivel ser o mesmo inimigo so que mais rapido.
         "levels": [
-            {"target": 10,  "enemies": ["chaser"]},
-            {"target": 15,  "enemies": ["chaser"]},
-            {"target": 22,  "enemies": ["chaser", "zigzag"]},
-            {"target": 30,  "enemies": ["chaser", "zigzag"]},
-            {"target": 40,  "enemies": ["chaser", "zigzag", "fast"]},
-            {"target": 50,  "enemies": ["chaser", "zigzag", "fast"]},
-            {"target": 62,  "enemies": ["zigzag", "fast"]},
-            {"target": 75,  "enemies": ["zigzag", "fast"]},
-            {"target": 90,  "enemies": ["fast", "zigzag"]},
-            {"target": 110, "enemies": ["fast", "zigzag", "chaser"]},
+            {"target": 10,  "enemies": ["chaser"],
+             "year": 1945, "era": "Nascimento do Bebop", "style": "bebop45"},
+            {"target": 15,  "enemies": ["chaser"],
+             "year": 1953, "era": "O Concerto do Seculo (Massey Hall)", "style": "bebop53"},
+            {"target": 22,  "enemies": ["chaser", "zigzag"],
+             "year": 1955, "era": "O Renascimento de Miles Davis", "style": "liveswing55"},
+            {"target": 30,  "enemies": ["chaser", "zigzag"],
+             "year": 1956, "era": "A Consolidacao do LP", "style": "calypsohard56"},
+            {"target": 40,  "enemies": ["chaser", "zigzag", "fast"],
+             "year": 1957, "era": "Hard Bop e Blue Note", "style": "bluesyhard57"},
+            {"target": 50,  "enemies": ["chaser", "zigzag", "fast"],
+             "year": 1959, "era": "O Ano de Ouro (Kind of Blue)", "style": "goldenyear59"},
+            {"target": 62,  "enemies": ["zigzag", "fast"],
+             "year": 1964, "era": "A Explosao da Bossa Nova", "style": "bossa64"},
+            {"target": 75,  "enemies": ["zigzag", "fast"],
+             "year": 1965, "era": "O Apice do Jazz Espiritual", "style": "spiritual65"},
+            {"target": 90,  "enemies": ["fast", "zigzag"],
+             "year": 1969, "era": "A Revolucao do Jazz Fusion", "style": "fusion69"},
+            {"target": 110, "enemies": ["fast", "zigzag", "chaser"],
+             "year": 1973, "era": "O Jazz-Funk Eletronico", "style": "jazzfunk73"},
         ],
     },
 }

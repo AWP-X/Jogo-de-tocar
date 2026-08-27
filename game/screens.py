@@ -196,6 +196,14 @@ def draw_hud(run):
     else:
         visuals.draw_text(f"Score: {run['score']}", display.font, 15, 15)
     visuals.draw_text(f"Vidas: {run['lives']}", display.font, config.WIDTH - 150, 15)
+
+    world_id, level_num = run.get("world"), run.get("level_num")
+    if world_id and level_num:
+        level_data = config.WORLDS[world_id]["levels"][level_num - 1]
+        year, era = level_data.get("year"), level_data.get("era")
+        if year and era:
+            visuals.draw_text(f"{year} - {era}", display.font_small, config.WIDTH // 2, 40,
+                               center=True, color=config.TEXT_MUTED)
     if run.get("combo", 0) > 0:
         combo_color = config.ACCENT if run["combo"] >= config.COMBO_STEP else config.TEXT_MUTED
         visuals.draw_text(f"Combo x{run['combo']}", display.font_small, 15, 48, color=combo_color)
@@ -447,6 +455,11 @@ def draw_level_select(mouse_pos, dt):
 
         _, oy, _ = visuals.draw_world_orb(pos, r, world["color"], mouse_pos, hover_t, locked=not is_unlocked)
         if is_unlocked:
+            level_data = world["levels"][level_num - 1]
+            year = level_data.get("year")
+            if year:
+                visuals.draw_text(str(year), display.font_small, pos[0], oy - r - 16,
+                                   center=True, color=config.TEXT_MUTED)
             visuals.draw_text(str(level_num), display.font_big, pos[0], oy, center=True, shadow=True)
             stars = state.progress[state.current_world]["stars"][level_num - 1]
             if stars > 0:
@@ -480,9 +493,16 @@ def draw_level_complete(mouse_pos, run, dt):
         title = f"MUNDO {world['name'].upper()} CONCLUIDO!"
     else:
         title = f"NIVEL {state.current_level} CONCLUIDO!"
-    visuals.draw_text(title, display.font_big, config.WIDTH // 2, 220, center=True, shadow=True, color=config.ACCENT)
+    visuals.draw_text(title, display.font_big, config.WIDTH // 2, 200, center=True, shadow=True, color=config.ACCENT)
+
+    level_data = world["levels"][state.current_level - 1]
+    year, era = level_data.get("year"), level_data.get("era")
+    if year and era:
+        visuals.draw_text(f"{year} - {era}", display.font_small, config.WIDTH // 2, 236,
+                           center=True, color=config.TEXT_MUTED)
+
     stars = entities.compute_stars(run)
-    visuals.draw_star_rating((config.WIDTH // 2, 275), stars, size=22, gap=14)
+    visuals.draw_star_rating((config.WIDTH // 2, 284), stars, size=22, gap=14)
     visuals.draw_text(f"Pontuacao: {run['score']}", display.font, config.WIDTH // 2, 335,
                        center=True, color=config.TEXT_MUTED)
 
