@@ -86,9 +86,10 @@ def main():
                 for level_num, rect in layout.level_select_buttons(state.current_world).items():
                     if rect.collidepoint(pos) and level_num <= unlocked:
                         state.current_level = level_num
-                        target = world["levels"][level_num - 1]
-                        run = entities.new_run(target_score=target, world=state.current_world)
-                        music.play_world_music(state.current_world)
+                        level_data = world["levels"][level_num - 1]
+                        run = entities.new_run(target_score=level_data["target"], world=state.current_world,
+                                                level_num=level_num, enemy_kinds=level_data["enemies"])
+                        music.play_world_music(state.current_world, level_num=level_num)
                         current_state = "playing"
                         acted = True
                         break
@@ -100,9 +101,10 @@ def main():
             b = layout.level_complete_buttons(is_last)
             if not is_last and b["next"].collidepoint(pos):
                 state.current_level += 1
-                target = world["levels"][state.current_level - 1]
-                run = entities.new_run(target_score=target, world=state.current_world)
-                music.play_world_music(state.current_world)
+                level_data = world["levels"][state.current_level - 1]
+                run = entities.new_run(target_score=level_data["target"], world=state.current_world,
+                                        level_num=state.current_level, enemy_kinds=level_data["enemies"])
+                music.play_world_music(state.current_world, level_num=state.current_level)
                 current_state = "playing"
                 acted = True
             elif b["menu"].collidepoint(pos):
@@ -181,10 +183,12 @@ def main():
             b = layout.gameover_buttons()
             if b["retry"].collidepoint(pos):
                 # Preserva o modo da tentativa anterior: Arcade continua Arcade,
-                # e um nivel do Modo Historia tenta o mesmo nivel de novo.
-                run = entities.new_run(target_score=run["target_score"], world=run["world"])
+                # e um nivel do Modo Historia tenta o mesmo nivel de novo (mesmos
+                # inimigos, mesmo andamento de musica).
+                run = entities.new_run(target_score=run["target_score"], world=run["world"],
+                                        level_num=run["level_num"], enemy_kinds=run["enemy_kinds"])
                 if run["world"] is not None:
-                    music.play_world_music(run["world"])
+                    music.play_world_music(run["world"], level_num=run["level_num"])
                 current_state = "playing"
                 acted = True
             elif b["menu"].collidepoint(pos):
@@ -312,6 +316,8 @@ def main():
                 # Modo Historia: bateu a meta do nivel -> vitoria, libera o proximo.
                 music.stop_music()
                 state.unlock_level(state.current_world, state.current_level)
+                state.record_level_stars(state.current_world, state.current_level,
+                                          entities.compute_stars(run))
                 current_state = "level_complete"
 
             elif run["lives"] <= 0:

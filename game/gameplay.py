@@ -43,8 +43,20 @@ def update_gameplay(run, mouse_pos, dt):
                 # Ha musica tocando (Modo Historia): o golpe rende mais ou
                 # menos pontos dependendo de quao em cima da batida ele caiu.
                 tier_name, mult, color = judgment
-                run["score"] += mult
-                entities.spawn_hit_popup(run, hit_pos, tier_name, color)
+
+                # Combo: GREAT/PERFECT seguidos empilham um multiplicador extra;
+                # qualquer coisa abaixo disso quebra a sequencia.
+                if tier_name in ("GREAT", "PERFECT"):
+                    run["combo"] += 1
+                else:
+                    run["combo"] = 0
+                combo_mult = min(config.COMBO_MAX_MULT,
+                                  1.0 + (run["combo"] // config.COMBO_STEP) * config.COMBO_BONUS_PER_STEP)
+                points = round(mult * combo_mult)
+
+                run["score"] += points
+                label = tier_name if combo_mult <= 1.0 else f"{tier_name} x{combo_mult:.1f}"
+                entities.spawn_hit_popup(run, hit_pos, label, color)
             else:
                 run["score"] += 1   # Modo Arcade (sem musica): sempre +1, como antes
 
@@ -52,6 +64,7 @@ def update_gameplay(run, mouse_pos, dt):
             audio.play(audio.hit_sound)
         elif player_rect.colliderect(enemy.rect):
             run["lives"] -= 1
+            run["combo"] = 0
             enemy.respawn(run["enemy_speed"])
             audio.play(audio.hurt_sound)
 

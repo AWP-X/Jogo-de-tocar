@@ -44,12 +44,30 @@ DIFFICULTY_ORDER = ["facil", "normal", "dificil"]
 # longe possivel, bem no meio de duas batidas) - lista do melhor grau (janela
 # mais apertada) pro pior (qualquer coisa que sobrar cai em Trash).
 RHYTHM_TIERS = [
-    ("PERFECT", 0.15, 5, (255, 205, 60)),
-    ("GREAT",   0.35, 4, (110, 230, 120)),
-    ("NORMAL",  0.55, 3, (255, 255, 255)),
-    ("OK",      0.75, 2, (160, 160, 185)),
+    ("PERFECT", 0.12, 5, (255, 205, 60)),
+    ("GREAT",   0.30, 4, (110, 230, 120)),
+    ("NORMAL",  0.50, 3, (255, 255, 255)),
+    ("OK",      0.72, 2, (160, 160, 185)),
     ("TRASH",   1.01, 1, (170, 90, 90)),
 ]
+
+# Combo: acertos seguidos em GREAT/PERFECT aumentam um multiplicador extra
+# (empilha em cima do multiplicador do grau). Reseta ao tomar dano ou ao
+# acertar um golpe OK/NORMAL/TRASH.
+COMBO_STEP = 5          # a cada N acertos seguidos, sobe um degrau
+COMBO_BONUS_PER_STEP = 0.5
+COMBO_MAX_MULT = 3.0
+
+# Inimigos ganham variedade nas fases mais avancadas do Modo Historia.
+ENEMY_VARIANT_COLORS = {
+    "chaser": (90, 220, 90),     # o inimigo classico (verde) - persegue direto
+    "zigzag": (90, 170, 230),    # azul - persegue serpenteando, mais dificil de prever
+    "fast":   (230, 200, 70),    # amarelo - mais rapido e um pouco menor
+}
+
+# Fases mais avancadas comecam com os inimigos um pouco mais rapidos, alem do
+# que a dificuldade (facil/normal/dificil) ja define - 5% a mais por nivel.
+LEVEL_SPEED_RAMP = 0.05
 
 # ===================== CORES =====================
 WHITE        = (255, 255, 255)
@@ -99,8 +117,21 @@ WORLDS = {
         "orb_style": "vinyl",      # o portal vira um disco de vinil girando
         # Icones que ficam girando ao redor do portal na selecao de mundo.
         "orbit_icons": ["saxophone", "piano", "trumpet", "drum"],
-        # Pontuacao alvo de cada nivel (indice 0 = nivel 1).
-        "levels": [10, 15, 22, 30, 40, 50, 62, 75, 90, 110],
+        # Cada nivel tem uma meta de pontos e quais tipos de inimigo podem
+        # aparecer nele (indice 0 = nivel 1) - vai introduzindo variedade aos
+        # poucos em vez de todo nivel ser o mesmo inimigo so que mais rapido.
+        "levels": [
+            {"target": 10,  "enemies": ["chaser"]},
+            {"target": 15,  "enemies": ["chaser"]},
+            {"target": 22,  "enemies": ["chaser", "zigzag"]},
+            {"target": 30,  "enemies": ["chaser", "zigzag"]},
+            {"target": 40,  "enemies": ["chaser", "zigzag", "fast"]},
+            {"target": 50,  "enemies": ["chaser", "zigzag", "fast"]},
+            {"target": 62,  "enemies": ["zigzag", "fast"]},
+            {"target": 75,  "enemies": ["zigzag", "fast"]},
+            {"target": 90,  "enemies": ["fast", "zigzag"]},
+            {"target": 110, "enemies": ["fast", "zigzag", "chaser"]},
+        ],
     },
 }
 WORLD_ORDER = ["jazzy"]

@@ -146,6 +146,9 @@ def draw_hud(run):
     else:
         visuals.draw_text(f"Score: {run['score']}", display.font, 15, 15)
     visuals.draw_text(f"Vidas: {run['lives']}", display.font, config.WIDTH - 150, 15)
+    if run.get("combo", 0) > 0:
+        combo_color = config.ACCENT if run["combo"] >= config.COMBO_STEP else config.TEXT_MUTED
+        visuals.draw_text(f"Combo x{run['combo']}", display.font_small, 15, 48, color=combo_color)
     visuals.draw_text("Mouse: Atacar", display.font_small, 15, config.HEIGHT - 30, color=config.TEXT_MUTED)
     visuals.draw_text("ESC: Pausar", display.font_small, config.WIDTH - 140, config.HEIGHT - 30, color=config.TEXT_MUTED)
     if state.settings["show_fps"]:
@@ -389,9 +392,13 @@ def draw_level_select(mouse_pos, dt):
         _, oy, _ = visuals.draw_world_orb(pos, r, world["color"], mouse_pos, hover_t, locked=not is_unlocked)
         if is_unlocked:
             visuals.draw_text(str(level_num), display.font_big, pos[0], oy, center=True, shadow=True)
-            target = world["levels"][level_num - 1]
-            visuals.draw_text(f"{target}pts", display.font_small, pos[0], oy + r + 20,
-                               center=True, color=config.TEXT_MUTED)
+            stars = state.progress[state.current_world]["stars"][level_num - 1]
+            if stars > 0:
+                visuals.draw_star_rating((pos[0], oy + r + 24), stars, size=8, gap=4)
+            else:
+                target = world["levels"][level_num - 1]["target"]
+                visuals.draw_text(f"{target}pts", display.font_small, pos[0], oy + r + 20,
+                                   center=True, color=config.TEXT_MUTED)
         else:
             visuals.draw_lock_icon(pos, r * 0.45, config.TEXT_MUTED)
         idx += 1
@@ -414,7 +421,9 @@ def draw_level_complete(mouse_pos, run, dt):
     else:
         title = f"NIVEL {state.current_level} CONCLUIDO!"
     visuals.draw_text(title, display.font_big, config.WIDTH // 2, 220, center=True, shadow=True, color=config.ACCENT)
-    visuals.draw_text(f"Pontuacao: {run['score']}", display.font, config.WIDTH // 2, 290,
+    stars = entities.compute_stars(run)
+    visuals.draw_star_rating((config.WIDTH // 2, 275), stars, size=22, gap=14)
+    visuals.draw_text(f"Pontuacao: {run['score']}", display.font, config.WIDTH // 2, 335,
                        center=True, color=config.TEXT_MUTED)
 
     labels = {"next": "PROXIMO NIVEL", "menu": "MENU"}

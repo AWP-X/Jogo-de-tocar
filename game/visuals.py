@@ -399,3 +399,38 @@ def draw_lock_icon(center, size, color):
     """Cadeado - agora um icone vetorial de verdade (Feather Icons), tingido
     na cor pedida do mesmo jeito que os icones de botao."""
     draw_icon("lock", center, color, size=max(4, int(size * 0.5)))
+
+
+def _star_points(center, outer_r, inner_r):
+    """5 pontas de estrela alternando raio externo/interno - comeca apontando
+    pra cima. Desenhada na hora (poligono), sem depender de nenhuma fonte ter
+    o glifo de estrela - varias fontes do sistema nao tem (viram caixinha
+    vazia), entao um poligono e mais confiavel."""
+    cx, cy = center
+    points = []
+    for i in range(10):
+        angle = -math.pi / 2 + i * math.pi / 5
+        r = outer_r if i % 2 == 0 else inner_r
+        points.append((cx + math.cos(angle) * r, cy + math.sin(angle) * r))
+    return points
+
+
+def draw_star(center, size, filled, color=(255, 205, 60), empty_color=(70, 68, 82)):
+    """Uma estrela de 5 pontas: preenchida (conquistada) ou so o contorno
+    (ainda nao conquistada)."""
+    pts = _star_points(center, size, size * 0.42)
+    if filled:
+        pygame.draw.polygon(canvas, color, pts)
+    else:
+        pygame.draw.polygon(canvas, empty_color, pts, width=2)
+
+
+def draw_star_rating(center, stars, size=11, gap=6, color=(255, 205, 60), empty_color=(70, 68, 82)):
+    """Desenha 3 estrelas lado a lado, centralizadas em `center` - as
+    primeiras `stars` vem preenchidas, o resto so contorno."""
+    cx, cy = center
+    total_w = 3 * (size * 2) + 2 * gap
+    x0 = cx - total_w / 2 + size
+    for i in range(3):
+        star_center = (x0 + i * (size * 2 + gap), cy)
+        draw_star(star_center, size, filled=(i < stars), color=color, empty_color=empty_color)

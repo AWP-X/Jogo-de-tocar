@@ -213,7 +213,7 @@ PROGRESS_FILE = os.path.join(config.PROJECT_ROOT, "progress.json")
 
 
 def load_progress():
-    result = {w: {"unlocked": 1} for w in config.WORLD_ORDER}
+    result = {w: {"unlocked": 1, "stars": [0] * len(config.WORLDS[w]["levels"])} for w in config.WORLD_ORDER}
     try:
         with open(PROGRESS_FILE, "r") as f:
             data = json.load(f)
@@ -226,6 +226,11 @@ def load_progress():
             total = len(config.WORLDS[world_id]["levels"])
             if isinstance(entry, dict) and isinstance(entry.get("unlocked"), int):
                 result[world_id]["unlocked"] = max(1, min(entry["unlocked"], total))
+            if isinstance(entry, dict) and isinstance(entry.get("stars"), list):
+                stars = entry["stars"]
+                for i in range(min(total, len(stars))):
+                    if isinstance(stars[i], int) and 0 <= stars[i] <= 3:
+                        result[world_id]["stars"][i] = stars[i]
     return result
 
 
@@ -246,4 +251,13 @@ def unlock_level(world_id, level_num):
     next_level = min(level_num + 1, total)
     if progress[world_id]["unlocked"] < next_level:
         progress[world_id]["unlocked"] = next_level
+        save_progress()
+
+
+def record_level_stars(world_id, level_num, stars):
+    """Guarda a MELHOR avaliacao (1-3 estrelas) ja conseguida numa fase."""
+    idx = level_num - 1
+    stars_list = progress[world_id]["stars"]
+    if idx < len(stars_list) and stars > stars_list[idx]:
+        stars_list[idx] = stars
         save_progress()
