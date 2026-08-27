@@ -42,6 +42,7 @@ DIFFICULTY_ORDER = ["facil", "normal", "dificil"]
 WHITE        = (255, 255, 255)
 BLACK        = (0, 0, 0)
 BG_GAME      = (15, 15, 25)
+JAZZY_BG     = (32, 12, 24)   # tom vinho escuro, clima de clube de jazz
 
 # Paleta "profissional" do menu/opcoes (tema neon escuro)
 BG_TOP       = (9, 8, 22)
@@ -72,6 +73,21 @@ OPTIONS_TAB_LABELS = {
     "ranking": "RANKING", "creditos": "CREDITOS",
 }
 
+# ===================== MUNDOS / MODO HISTORIA =====================
+# Cada mundo toca um genero musical diferente. Por enquanto so existe o Jazzy;
+# a lista foi pensada pra crescer (Rock, Eletronico, etc.) sem precisar mexer
+# em nada alem de acrescentar uma entrada aqui.
+WORLDS = {
+    "jazzy": {
+        "name": "Jazzy",
+        "tagline": "O mundo que so toca jazz.",
+        "music": "jazzy",
+        # Pontuacao alvo de cada nivel (indice 0 = nivel 1).
+        "levels": [10, 15, 22, 30, 40, 50, 62, 75, 90, 110],
+    },
+}
+WORLD_ORDER = ["jazzy"]
+
 # Botoes do menu principal
-MENU_LABELS = {"play": "JOGAR", "options": "OPCOES", "quit": "SAIR"}
-MENU_ICONS  = {"play": "play", "options": "settings", "quit": "power"}
+MENU_LABELS = {"play": "JOGAR (ARCADE)", "historia": "MODO HISTORIA", "options": "OPCOES", "quit": "SAIR"}
+MENU_ICONS  = {"play": "play", "historia": "map", "options": "settings", "quit": "power"}

@@ -49,6 +49,10 @@ name_input = ""  # texto sendo digitado na tela de "novo recorde"
 options_return_to = "menu"
 options_tab = "audio"
 
+# Contexto do Modo Historia: qual mundo/nivel esta selecionado ou em jogo agora.
+current_world = "jazzy"
+current_level = 1   # 1-indexado
+
 
 # ===================== CONFIGURACOES (persistentes) =====================
 SETTINGS_FILE = os.path.join(config.PROJECT_ROOT, "settings.json")
@@ -196,3 +200,44 @@ def add_leaderboard_entry(name, score, difficulty):
     leaderboard.sort(key=lambda e: e["score"], reverse=True)
     del leaderboard[LEADERBOARD_SIZE:]
     save_leaderboard()
+
+
+# ===================== PROGRESSO NO MODO HISTORIA =====================
+PROGRESS_FILE = os.path.join(config.PROJECT_ROOT, "progress.json")
+
+
+def load_progress():
+    result = {w: {"unlocked": 1} for w in config.WORLD_ORDER}
+    try:
+        with open(PROGRESS_FILE, "r") as f:
+            data = json.load(f)
+    except Exception:
+        return result
+
+    if isinstance(data, dict):
+        for world_id in config.WORLD_ORDER:
+            entry = data.get(world_id)
+            total = len(config.WORLDS[world_id]["levels"])
+            if isinstance(entry, dict) and isinstance(entry.get("unlocked"), int):
+                result[world_id]["unlocked"] = max(1, min(entry["unlocked"], total))
+    return result
+
+
+def save_progress():
+    try:
+        with open(PROGRESS_FILE, "w") as f:
+            json.dump(progress, f, indent=2)
+    except Exception:
+        pass
+
+
+progress = load_progress()
+
+
+def unlock_level(world_id, level_num):
+    """Libera o proximo nivel (1-indexado) se ainda nao estava liberado."""
+    total = len(config.WORLDS[world_id]["levels"])
+    next_level = min(level_num + 1, total)
+    if progress[world_id]["unlocked"] < next_level:
+        progress[world_id]["unlocked"] = next_level
+        save_progress()

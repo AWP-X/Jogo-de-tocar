@@ -1,11 +1,14 @@
 """Composicao visual de cada tela do jogo: menu, opcoes, HUD, gameplay, pause
 e game over. So desenham - a logica de clique/teclado mora em game/app.py.
 """
+import math
+
 import pygame
 
 from . import config
 from . import display
 from . import layout
+from . import music
 from . import state
 from . import visuals
 
@@ -125,9 +128,11 @@ def draw_options(mouse_pos, dt):
                            center=True, color=config.TEXT_MUTED)
         visuals.draw_text("Feito com Python + Pygame", display.font_small, config.WIDTH // 2, 330,
                            center=True, color=config.TEXT_MUTED)
-        visuals.draw_text("Icones: Feather Icons (licenca MIT)", display.font_small, config.WIDTH // 2, 360,
-                           center=True, color=config.TEXT_MUTED)
-        visuals.draw_text("Versao 1.0", display.font_small, config.WIDTH // 2, 400,
+        visuals.draw_text("Icones: Feather Icons (MIT) e Twemoji (CC-BY 4.0)", display.font_small,
+                           config.WIDTH // 2, 360, center=True, color=config.TEXT_MUTED)
+        visuals.draw_text("Musica do Mundo Jazzy: composta por codigo, 100% original",
+                           display.font_small, config.WIDTH // 2, 385, center=True, color=config.TEXT_MUTED)
+        visuals.draw_text("Versao 1.0", display.font_small, config.WIDTH // 2, 420,
                            center=True, color=config.TEXT_MUTED)
 
     visuals.draw_button(layout.options_voltar_button(), "VOLTAR", mouse_pos, "options_voltar", dt,
@@ -135,7 +140,10 @@ def draw_options(mouse_pos, dt):
 
 
 def draw_hud(run):
-    visuals.draw_text(f"Score: {run['score']}", display.font, 15, 15)
+    if run.get("target_score") is not None:
+        visuals.draw_text(f"Score: {run['score']} / {run['target_score']}", display.font, 15, 15)
+    else:
+        visuals.draw_text(f"Score: {run['score']}", display.font, 15, 15)
     visuals.draw_text(f"Vidas: {run['lives']}", display.font, config.WIDTH - 150, 15)
     visuals.draw_text("Mouse: Atacar", display.font_small, 15, config.HEIGHT - 30, color=config.TEXT_MUTED)
     visuals.draw_text("ESC: Pausar", display.font_small, config.WIDTH - 140, config.HEIGHT - 30, color=config.TEXT_MUTED)
@@ -144,8 +152,34 @@ def draw_hud(run):
                            center=True, color=config.TEXT_MUTED)
 
 
+def draw_jazzy_stage():
+    """Fundo decorativo do Mundo Jazzy: instrumentos animados no ritmo da
+    musica (mesmo tempo/compasso de game/music.py, pra ficarem sincronizados)."""
+    t = pygame.time.get_ticks() / 1000.0
+    beat_phase = (t % music.BEAT) / music.BEAT
+    chord_phase = (t % music.CHORD_DUR) / music.CHORD_DUR
+
+    canvas.fill(config.JAZZY_BG)
+
+    # Bateria: uma "batida" curta a cada tempo (decai rapido, tipo taco no prato).
+    drum_pulse = max(0.0, 1 - beat_phase * 4) * 14
+    visuals.draw_stage_icon("drum", (config.WIDTH - 100, config.HEIGHT - 100), 90 + drum_pulse)
+
+    # Piano: um pulso mais lento a cada troca de acorde (nasce forte, some).
+    piano_pulse = max(0.0, 1 - chord_phase * 2) * 10
+    visuals.draw_stage_icon("piano", (100, config.HEIGHT - 100), 96 + piano_pulse)
+
+    # Sax e trompete balancam suavemente, fora de fase um do outro.
+    sway = math.sin(t * 2 * math.pi / music.BEAT) * 8
+    visuals.draw_stage_icon("saxophone", (100, 100 + sway), 78)
+    visuals.draw_stage_icon("trumpet", (config.WIDTH - 100, 100 - sway), 78)
+
+
 def draw_gameplay(run, attack_pos):
-    canvas.fill(config.BG_GAME)
+    if run.get("world") == "jazzy":
+        draw_jazzy_stage()
+    else:
+        canvas.fill(config.BG_GAME)
     for enemy in run["enemies"]:
         enemy.draw(canvas)
     pygame.draw.circle(canvas, config.PLAYER_COLOR,
@@ -171,11 +205,16 @@ def draw_gameover(mouse_pos, run, dt):
     visuals.draw_text("GAME OVER", display.font_big, config.WIDTH // 2, 180, center=True, shadow=True)
     visuals.draw_text(f"Pontuacao final: {run['score']}", display.font, config.WIDTH // 2, 250,
                        center=True, color=config.TEXT_MUTED)
-    if run["score"] > 0 and run["score"] >= state.highscore:
+
+    if run.get("target_score") is not None:
+        visuals.draw_text(f"Meta do nivel: {run['target_score']} pontos", display.font, config.WIDTH // 2, 285,
+                           center=True, color=config.TEXT_MUTED)
+    elif run["score"] > 0 and run["score"] >= state.highscore:
         visuals.draw_text("NOVO RECORDE!", display.font, config.WIDTH // 2, 285, center=True, color=config.ACCENT)
     else:
         visuals.draw_text(f"Recorde: {state.highscore}", display.font, config.WIDTH // 2, 285,
                            center=True, color=config.TEXT_MUTED)
+
     for i, (key, rect) in enumerate(layout.gameover_buttons().items()):
         visuals.draw_button(rect, "JOGAR DE NOVO" if key == "retry" else "MENU", mouse_pos,
                              f"gameover_{key}", dt, focused=(i == state.nav_index))
@@ -202,3 +241,73 @@ def draw_enter_name(run, dt):
 
     visuals.draw_text("ESC para pular", display.font_small, config.WIDTH // 2, 450,
                        center=True, color=config.TEXT_MUTED)
+
+
+def draw_world_select(mouse_pos, dt):
+    canvas.blit(visuals.MENU_BG_SURF, (0, 0))
+    visuals.update_particles(dt)
+    visuals.draw_particles(canvas)
+
+    visuals.draw_text("MODO HISTORIA", display.font_big, config.WIDTH // 2, 100, center=True, shadow=True)
+    visuals.draw_text("Escolha um mundo", display.font_small, config.WIDTH // 2, 150,
+                       center=True, color=config.TEXT_MUTED)
+
+    idx = 0
+    for world_id, rect in layout.world_buttons().items():
+        world = config.WORLDS[world_id]
+        unlocked = state.progress[world_id]["unlocked"]
+        total = len(world["levels"])
+        label = f"{world['name'].upper()}  ({unlocked}/{total})"
+        visuals.draw_button(rect, label, mouse_pos, f"world_{world_id}", dt, focused=(idx == state.nav_index))
+        idx += 1
+
+    visuals.draw_button(layout.historia_voltar_button(), "VOLTAR", mouse_pos, "world_voltar", dt,
+                         focused=(idx == state.nav_index))
+
+
+def draw_level_select(mouse_pos, dt):
+    canvas.blit(visuals.MENU_BG_SURF, (0, 0))
+    visuals.update_particles(dt)
+    visuals.draw_particles(canvas)
+
+    world = config.WORLDS[state.current_world]
+    unlocked = state.progress[state.current_world]["unlocked"]
+
+    visuals.draw_text(f"MUNDO: {world['name'].upper()}", display.font_big, config.WIDTH // 2, 90,
+                       center=True, shadow=True)
+    visuals.draw_text("Escolha um nivel", display.font_small, config.WIDTH // 2, 135,
+                       center=True, color=config.TEXT_MUTED)
+
+    idx = 0
+    for level_num, rect in layout.level_select_buttons(state.current_world).items():
+        target = world["levels"][level_num - 1]
+        is_unlocked = level_num <= unlocked
+        label = f"NIVEL {level_num}: {target}pts" if is_unlocked else "BLOQUEADO"
+        visuals.draw_button(rect, label, mouse_pos, f"level_{level_num}", dt,
+                             enabled=is_unlocked, focused=(idx == state.nav_index))
+        idx += 1
+
+    visuals.draw_button(layout.historia_voltar_button(), "VOLTAR", mouse_pos, "level_voltar", dt,
+                         focused=(idx == state.nav_index))
+
+
+def draw_level_complete(mouse_pos, run, dt):
+    canvas.blit(visuals.MENU_BG_SURF, (0, 0))
+    visuals.update_particles(dt)
+    visuals.draw_particles(canvas)
+
+    world = config.WORLDS[state.current_world]
+    total = len(world["levels"])
+    is_last = state.current_level >= total
+
+    if is_last:
+        title = f"MUNDO {world['name'].upper()} CONCLUIDO!"
+    else:
+        title = f"NIVEL {state.current_level} CONCLUIDO!"
+    visuals.draw_text(title, display.font_big, config.WIDTH // 2, 220, center=True, shadow=True, color=config.ACCENT)
+    visuals.draw_text(f"Pontuacao: {run['score']}", display.font, config.WIDTH // 2, 290,
+                       center=True, color=config.TEXT_MUTED)
+
+    labels = {"next": "PROXIMO NIVEL", "menu": "MENU"}
+    for i, (key, rect) in enumerate(layout.level_complete_buttons(is_last).items()):
+        visuals.draw_button(rect, labels[key], mouse_pos, f"levelcomplete_{key}", dt, focused=(i == state.nav_index))

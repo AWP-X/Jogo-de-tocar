@@ -43,8 +43,15 @@ class Enemy:
         pygame.draw.rect(surface, config.ENEMY_COLOR, self.rect)
 
 
-def new_run():
-    """Cria os dados de uma partida zerada, de acordo com a dificuldade escolhida."""
+def new_run(target_score=None, world=None):
+    """Cria os dados de uma partida zerada, de acordo com a dificuldade escolhida.
+
+    target_score=None -> Modo Arcade (infinito, com recorde/ranking).
+    target_score=N     -> Modo Historia: a partida termina em vitoria ao
+                           atingir N pontos, mesmo que ainda sobrem vidas.
+    world              -> id do mundo (ex: "jazzy"), so preenchido no Modo
+                           Historia; controla o cenario/musica de fundo.
+    """
     diff = config.DIFFICULTIES[state.settings["difficulty"]]
     enemy_speed = int(200 * diff["enemy_speed_mult"])
     return {
@@ -54,6 +61,8 @@ def new_run():
         "enemy_speed": enemy_speed,
         "score": 0,
         "lives": diff["start_lives"],
+        "target_score": target_score,
+        "world": world,
     }
 
 

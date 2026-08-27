@@ -7,15 +7,14 @@ from . import config
 from . import state
 
 
+MENU_BUTTON_ORDER = ["play", "historia", "options", "quit"]
+
+
 def menu_buttons():
     w, h, gap = 260, 56, 20
     x = config.WIDTH // 2 - w // 2
     start_y = 344
-    return {
-        "play":    pygame.Rect(x, start_y, w, h),
-        "options": pygame.Rect(x, start_y + (h + gap), w, h),
-        "quit":    pygame.Rect(x, start_y + 2 * (h + gap), w, h),
-    }
+    return {key: pygame.Rect(x, start_y + i * (h + gap), w, h) for i, key in enumerate(MENU_BUTTON_ORDER)}
 
 
 def difficulty_button():
@@ -23,6 +22,43 @@ def difficulty_button():
     x = config.WIDTH // 2 - w // 2
     y = 286
     return pygame.Rect(x, y, w, h)
+
+
+# ---- Modo Historia: selecao de mundo e de nivel ----
+def historia_voltar_button():
+    return pygame.Rect(config.WIDTH // 2 - 150, 620, 300, 50)
+
+
+def world_buttons():
+    w, h, gap = 320, 100, 24
+    x = config.WIDTH // 2 - w // 2
+    y0 = 240
+    return {wid: pygame.Rect(x, y0 + i * (h + gap), w, h) for i, wid in enumerate(config.WORLD_ORDER)}
+
+
+def level_select_buttons(world_id):
+    total = len(config.WORLDS[world_id]["levels"])
+    cols = 5
+    w, h, gap = 180, 90, 20
+    grid_w = cols * w + (cols - 1) * gap
+    x0 = config.WIDTH // 2 - grid_w // 2
+    y0 = 230
+    buttons = {}
+    for i in range(total):
+        row, col = divmod(i, cols)
+        x = x0 + col * (w + gap)
+        y = y0 + row * (h + gap)
+        buttons[i + 1] = pygame.Rect(x, y, w, h)   # chave = numero do nivel (1-indexado)
+    return buttons
+
+
+def level_complete_buttons(is_last):
+    if is_last:
+        return {"menu": pygame.Rect(config.WIDTH // 2 - 150, 420, 300, 50)}
+    return {
+        "next": pygame.Rect(config.WIDTH // 2 - 150, 380, 300, 50),
+        "menu": pygame.Rect(config.WIDTH // 2 - 150, 450, 300, 50),
+    }
 
 
 # ---- Opcoes: painel unico com abas (Audio / Controles / Video / Ranking / Creditos) ----
@@ -104,6 +140,18 @@ def nav_items_for(current_state):
             items += list(video_content_buttons().items())
         items.append(("voltar", options_voltar_button()))
         return items
+    if current_state == "world_select":
+        items = list(world_buttons().items())
+        items.append(("voltar", historia_voltar_button()))
+        return items
+    if current_state == "level_select":
+        items = list(level_select_buttons(state.current_world).items())
+        items.append(("voltar", historia_voltar_button()))
+        return items
+    if current_state == "level_complete":
+        total = len(config.WORLDS[state.current_world]["levels"])
+        is_last = state.current_level >= total
+        return list(level_complete_buttons(is_last).items())
     if current_state == "paused":
         return list(pause_buttons().items())
     if current_state == "gameover":

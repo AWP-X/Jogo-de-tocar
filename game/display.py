@@ -1,16 +1,13 @@
 """Janela, canvas logico, fontes e a escala/letterbox entre os dois.
 
-Inicializa o pygame e cria a janela assim que este modulo e importado pela
-primeira vez - por isso ele deve ser um dos primeiros a ser importado (o
-game/app.py cuida disso).
+Cria a janela assim que este modulo e importado pela primeira vez. O
+pygame.init() em si roda em game/__init__.py, antes de qualquer submodulo -
+aqui so usamos o resultado.
 """
 import pygame
 
 from . import config
 from . import state
-
-pygame.mixer.pre_init(22050, -16, 2, 512)
-pygame.init()
 
 screen = pygame.display.set_mode((config.WIDTH, config.HEIGHT))
 pygame.display.set_caption("Mystical Melody")

@@ -126,10 +126,13 @@ def _resource_path(*parts):
 
 
 def _load_icon_svgs():
-    """Icones reais (Feather Icons, licenca MIT) baixados como SVG - o pygame consegue
-    rasterizar SVG nativamente. Se o arquivo nao existir, o icone so nao aparece."""
+    """Icones reais baixados como SVG (Feather Icons, MIT, pros icones de botao
+    monocromaticos; Twemoji, CC-BY 4.0, pros instrumentos coloridos do palco
+    do Mundo Jazzy) - o pygame consegue rasterizar SVG nativamente. Se o
+    arquivo nao existir, o icone so nao aparece."""
+    names = ("play", "settings", "power", "map", "saxophone", "piano", "trumpet", "drum")
     surfaces = {}
-    for name in ("play", "settings", "power"):
+    for name in names:
         try:
             surfaces[name] = pygame.image.load(_resource_path("assets", "icons", f"{name}.svg")).convert_alpha()
         except Exception:
@@ -157,6 +160,20 @@ def draw_icon(icon, center, color, size=10):
 
     rect = tinted.get_rect(center=(int(center[0]), int(center[1])))
     canvas.blit(tinted, rect)
+
+
+def draw_stage_icon(icon, center, size, alpha=255):
+    """Desenha um icone COLORIDO sem tingir (ao contrario de draw_icon, que
+    tinge icones monocromaticos) - usado nos cenarios decorativos dos mundos."""
+    base = ICON_SURFACES.get(icon)
+    if base is None:
+        return
+    size = max(1, int(size))
+    scaled = pygame.transform.smoothscale(base, (size, size))
+    if alpha < 255:
+        scaled.set_alpha(max(0, alpha))
+    rect = scaled.get_rect(center=(int(center[0]), int(center[1])))
+    canvas.blit(scaled, rect)
 
 
 # ===================== BOTAO / ABA / PAINEL / SLIDER =====================

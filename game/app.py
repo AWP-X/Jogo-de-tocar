@@ -10,6 +10,7 @@ from . import display
 from . import entities
 from . import gameplay
 from . import layout
+from . import music
 from . import screens
 from . import state
 
@@ -43,8 +44,12 @@ def main():
             else:
                 b = layout.menu_buttons()
                 if b["play"].collidepoint(pos):
+                    music.stop_music()
                     run = entities.new_run()
                     current_state = "playing"
+                    acted = True
+                elif b["historia"].collidepoint(pos):
+                    current_state = "world_select"
                     acted = True
                 elif b["options"].collidepoint(pos):
                     state.options_return_to = "menu"
@@ -53,6 +58,51 @@ def main():
                 elif b["quit"].collidepoint(pos):
                     running = False
                     acted = True
+
+        elif current_state == "world_select":
+            if layout.historia_voltar_button().collidepoint(pos):
+                current_state = "menu"
+                acted = True
+            else:
+                for world_id, rect in layout.world_buttons().items():
+                    if rect.collidepoint(pos):
+                        state.current_world = world_id
+                        current_state = "level_select"
+                        acted = True
+                        break
+
+        elif current_state == "level_select":
+            if layout.historia_voltar_button().collidepoint(pos):
+                current_state = "world_select"
+                acted = True
+            else:
+                world = config.WORLDS[state.current_world]
+                unlocked = state.progress[state.current_world]["unlocked"]
+                for level_num, rect in layout.level_select_buttons(state.current_world).items():
+                    if rect.collidepoint(pos) and level_num <= unlocked:
+                        state.current_level = level_num
+                        target = world["levels"][level_num - 1]
+                        run = entities.new_run(target_score=target, world=state.current_world)
+                        music.play_world_music(state.current_world)
+                        current_state = "playing"
+                        acted = True
+                        break
+
+        elif current_state == "level_complete":
+            world = config.WORLDS[state.current_world]
+            total = len(world["levels"])
+            is_last = state.current_level >= total
+            b = layout.level_complete_buttons(is_last)
+            if not is_last and b["next"].collidepoint(pos):
+                state.current_level += 1
+                target = world["levels"][state.current_level - 1]
+                run = entities.new_run(target_score=target, world=state.current_world)
+                music.play_world_music(state.current_world)
+                current_state = "playing"
+                acted = True
+            elif b["menu"].collidepoint(pos):
+                current_state = "menu"
+                acted = True
 
         elif current_state == "options":
             if layout.options_voltar_button().collidepoint(pos):
@@ -118,13 +168,18 @@ def main():
                 current_state = "options"
                 acted = True
             elif b["menu"].collidepoint(pos):
+                music.stop_music()
                 current_state = "menu"
                 acted = True
 
         elif current_state == "gameover":
             b = layout.gameover_buttons()
             if b["retry"].collidepoint(pos):
-                run = entities.new_run()
+                # Preserva o modo da tentativa anterior: Arcade continua Arcade,
+                # e um nivel do Modo Historia tenta o mesmo nivel de novo.
+                run = entities.new_run(target_score=run["target_score"], world=run["world"])
+                if run["world"] is not None:
+                    music.play_world_music(run["world"])
                 current_state = "playing"
                 acted = True
             elif b["menu"].collidepoint(pos):
@@ -180,6 +235,10 @@ def main():
                     current_state = "playing"
                 elif current_state == "options":
                     current_state = state.options_return_to
+                elif current_state == "world_select":
+                    current_state = "menu"
+                elif current_state == "level_select":
+                    current_state = "world_select"
 
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_UP:
                 items = layout.nav_items_for(current_state)
@@ -237,14 +296,27 @@ def main():
         attack_pos = None
         if current_state == "playing":
             attack_pos = gameplay.update_gameplay(run, mouse_pos, dt)
-            if run["lives"] <= 0:
-                if run["score"] > state.highscore:
-                    state.highscore = run["score"]
-                    state.save_highscore(state.highscore)
-                if state.qualifies_for_leaderboard(run["score"]):
-                    state.name_input = ""
-                    current_state = "enter_name"
+
+            if run["target_score"] is not None and run["score"] >= run["target_score"]:
+                # Modo Historia: bateu a meta do nivel -> vitoria, libera o proximo.
+                music.stop_music()
+                state.unlock_level(state.current_world, state.current_level)
+                current_state = "level_complete"
+
+            elif run["lives"] <= 0:
+                music.stop_music()
+                if run["target_score"] is None:
+                    # Modo Arcade: recorde e ranking, como sempre.
+                    if run["score"] > state.highscore:
+                        state.highscore = run["score"]
+                        state.save_highscore(state.highscore)
+                    if state.qualifies_for_leaderboard(run["score"]):
+                        state.name_input = ""
+                        current_state = "enter_name"
+                    else:
+                        current_state = "gameover"
                 else:
+                    # Modo Historia: nao bateu a meta a tempo - so tenta de novo.
                     current_state = "gameover"
 
         # Transicao (flash rapido) toda vez que a tela muda + reset do foco de teclado
@@ -260,6 +332,12 @@ def main():
             screens.draw_menu(mouse_pos, dt)
         elif current_state == "options":
             screens.draw_options(mouse_pos, dt)
+        elif current_state == "world_select":
+            screens.draw_world_select(mouse_pos, dt)
+        elif current_state == "level_select":
+            screens.draw_level_select(mouse_pos, dt)
+        elif current_state == "level_complete":
+            screens.draw_level_complete(mouse_pos, run, dt)
         elif current_state == "playing":
             screens.draw_gameplay(run, attack_pos)
         elif current_state == "paused":
