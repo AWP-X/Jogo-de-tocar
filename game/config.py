@@ -38,6 +38,19 @@ DIFFICULTIES = {
 }
 DIFFICULTY_ORDER = ["facil", "normal", "dificil"]
 
+# ===================== RITMO (mata um inimigo no tempo da musica) =====================
+# So vale quando ha musica tocando (Modo Historia). "threshold" e a distancia
+# maxima ate a batida mais proxima (0 = golpe em cima da batida, 1 = o mais
+# longe possivel, bem no meio de duas batidas) - lista do melhor grau (janela
+# mais apertada) pro pior (qualquer coisa que sobrar cai em Trash).
+RHYTHM_TIERS = [
+    ("PERFECT", 0.15, 5, (255, 205, 60)),
+    ("GREAT",   0.35, 4, (110, 230, 120)),
+    ("NORMAL",  0.55, 3, (255, 255, 255)),
+    ("OK",      0.75, 2, (160, 160, 185)),
+    ("TRASH",   1.01, 1, (170, 90, 90)),
+]
+
 # ===================== CORES =====================
 WHITE        = (255, 255, 255)
 BLACK        = (0, 0, 0)

@@ -63,25 +63,47 @@ def new_run(target_score=None, world=None):
         "lives": diff["start_lives"],
         "target_score": target_score,
         "world": world,
+        "hit_popups": [],   # textos flutuantes de "PERFECT!"/"GREAT!"/etc.
     }
 
 
-def apply_progress(run):
+def apply_progress(run, old_score):
     """Aumenta a dificuldade conforme o score sobe (o quanto, depende do nivel
-    de dificuldade escolhido no menu)."""
+    de dificuldade escolhido no menu).
+
+    Recebe old_score (o placar ANTES do golpe que acabou de acontecer) porque,
+    com o ritmo, um unico golpe pode valer de 1 a 5 pontos - "score % 5 == 0"
+    deixaria de disparar se um golpe pulasse por cima do multiplo exato. Em vez
+    disso comparamos quantos multiplos de cada intervalo foram ultrapassados.
+    """
     diff = config.DIFFICULTIES[state.settings["difficulty"]]
     score = run["score"]
 
     # Jogador cresce um pouco a cada 5 pontos (ate um limite).
-    if score % 5 == 0 and run["player_size"] < config.PLAYER_MAX_SIZE:
+    if score // 5 > old_score // 5 and run["player_size"] < config.PLAYER_MAX_SIZE:
         run["player_size"] += 1
 
     # Inimigos ficam mais rapidos a cada 12 pontos.
-    if score % 12 == 0:
+    if score // 12 > old_score // 12:
         run["enemy_speed"] += diff["speed_step"]
         for e in run["enemies"]:
             e.speed = run["enemy_speed"]
 
     # Novo inimigo a cada 8 pontos (ate o maximo da dificuldade atual).
-    if score % 8 == 0 and len(run["enemies"]) < diff["max_enemies"]:
+    if score // 8 > old_score // 8 and len(run["enemies"]) < diff["max_enemies"]:
         run["enemies"].append(Enemy(run["enemy_speed"]))
+
+
+# ===================== TEXTOS FLUTUANTES (feedback de ritmo) =====================
+POPUP_LIFETIME = 0.7      # segundos ate sumir
+POPUP_RISE_SPEED = 70     # pixels por segundo, subindo
+
+
+def spawn_hit_popup(run, pos, text, color):
+    run["hit_popups"].append({"pos": pygame.Vector2(pos), "text": text, "color": color, "age": 0.0})
+
+
+def update_hit_popups(run, dt):
+    for popup in run["hit_popups"]:
+        popup["age"] += dt
+    run["hit_popups"][:] = [p for p in run["hit_popups"] if p["age"] < POPUP_LIFETIME]

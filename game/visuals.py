@@ -100,10 +100,10 @@ def _lerp_color(c1, c2, t):
 
 
 # ===================== TEXTO =====================
-def draw_text(text, fnt, x, y, center=False, color=config.WHITE, shadow=False):
+def draw_text(text, fnt, x, y, center=False, color=config.WHITE, shadow=False, alpha=None):
     if shadow:
         shadow_render = fnt.render(text, True, config.BLACK)
-        shadow_render.set_alpha(120)
+        shadow_render.set_alpha(120 if alpha is None else max(0, min(120, int(alpha))))
         srect = shadow_render.get_rect()
         if center:
             srect.center = (x + 3, y + 3)
@@ -112,6 +112,8 @@ def draw_text(text, fnt, x, y, center=False, color=config.WHITE, shadow=False):
         canvas.blit(shadow_render, srect)
 
     render = fnt.render(text, True, color)
+    if alpha is not None:
+        render.set_alpha(max(0, min(255, int(alpha))))
     rect = render.get_rect()
     if center:
         rect.center = (x, y)

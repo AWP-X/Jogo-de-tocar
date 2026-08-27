@@ -7,6 +7,7 @@ import pygame
 
 from . import config
 from . import display
+from . import entities
 from . import layout
 from . import music
 from . import state
@@ -185,8 +186,23 @@ def draw_gameplay(run, attack_pos):
     pygame.draw.circle(canvas, config.PLAYER_COLOR,
                         (int(run["player"].x), int(run["player"].y)),
                         int(run["player_size"]))
-    pygame.draw.circle(canvas, config.ATTACK_COLOR,
-                        (int(attack_pos.x), int(attack_pos.y)), config.ATTACK_RADIUS)
+
+    # A mira pulsa em cima da batida quando ha musica tocando - da uma pista
+    # visual de QUANDO acertar pra ganhar o bonus de ritmo, sem precisar so
+    # confiar no ouvido.
+    strength = music.beat_strength()
+    radius = config.ATTACK_RADIUS
+    if strength is not None:
+        radius = int(config.ATTACK_RADIUS * (1.0 + 0.5 * strength))
+    pygame.draw.circle(canvas, config.ATTACK_COLOR, (int(attack_pos.x), int(attack_pos.y)), radius)
+
+    for popup in run.get("hit_popups", []):
+        t = popup["age"] / entities.POPUP_LIFETIME
+        alpha = int(255 * (1 - t))
+        y_offset = t * entities.POPUP_RISE_SPEED
+        visuals.draw_text(popup["text"], display.font, popup["pos"].x, popup["pos"].y - y_offset,
+                           center=True, color=popup["color"], alpha=alpha)
+
     draw_hud(run)
 
 

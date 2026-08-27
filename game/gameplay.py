@@ -4,6 +4,7 @@ import pygame
 from . import audio
 from . import config
 from . import entities
+from . import music
 from . import state
 
 
@@ -33,13 +34,26 @@ def update_gameplay(run, mouse_pos, dt):
         enemy.update(run["player"], dt)
 
         if attack_rect.colliderect(enemy.rect):
+            hit_pos = pygame.Vector2(enemy.rect.center)
             enemy.respawn(run["enemy_speed"])
-            run["score"] += 1
-            entities.apply_progress(run)
+            old_score = run["score"]
+
+            judgment = music.judge_timing()
+            if judgment is not None:
+                # Ha musica tocando (Modo Historia): o golpe rende mais ou
+                # menos pontos dependendo de quao em cima da batida ele caiu.
+                tier_name, mult, color = judgment
+                run["score"] += mult
+                entities.spawn_hit_popup(run, hit_pos, tier_name, color)
+            else:
+                run["score"] += 1   # Modo Arcade (sem musica): sempre +1, como antes
+
+            entities.apply_progress(run, old_score)
             audio.play(audio.hit_sound)
         elif player_rect.colliderect(enemy.rect):
             run["lives"] -= 1
             enemy.respawn(run["enemy_speed"])
             audio.play(audio.hurt_sound)
 
+    entities.update_hit_popups(run, dt)
     return attack_pos

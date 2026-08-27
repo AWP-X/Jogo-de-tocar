@@ -12,6 +12,7 @@ import random
 
 import pygame
 
+from . import config
 from . import state
 
 SAMPLE_RATE = 22050
@@ -148,3 +149,37 @@ def update_music_volume():
     """Chamar sempre que volume/mudo mudar, pra musica acompanhar na hora."""
     if _current_track is not None:
         _current_track.set_volume(_music_volume())
+
+
+# ===================== RITMO (golpe sincronizado com a musica) =====================
+def _beat_distance():
+    """0 (golpe em cima da batida) .. 1 (o mais longe possivel, no meio de
+    duas batidas). So faz sentido enquanto ha musica tocando."""
+    t = pygame.time.get_ticks() / 1000.0
+    phase = t % BEAT
+    return min(phase, BEAT - phase) / (BEAT / 2)
+
+
+def beat_strength():
+    """0..1: quao perto estamos da proxima/ultima batida agora (1 = em cima
+    dela). Usado so pra dar um pulso visual - devolve None sem musica tocando."""
+    if _current_channel is None:
+        return None
+    return 1.0 - _beat_distance()
+
+
+def judge_timing():
+    """Compara o instante do golpe com a batida da musica.
+
+    Devolve None se nao ha musica tocando (o placar continua igual: +1 por
+    inimigo, como sempre) - ou (nome_do_grau, multiplicador, cor) quando ha
+    uma trilha ativa pra sincronizar o golpe.
+    """
+    if _current_channel is None:
+        return None
+    dist = _beat_distance()
+    for name, threshold, mult, color in config.RHYTHM_TIERS:
+        if dist <= threshold:
+            return name, mult, color
+    name, _, mult, color = config.RHYTHM_TIERS[-1]
+    return name, mult, color
