@@ -122,6 +122,53 @@ LEAD_VOICES = {
                 "vibrato": 0.005, "noise_attack": 0.09, "breath": 0.02, "detune": 0.005, "amp": 0.24},
 }
 
+# Escalas (semitons a partir da fundamental do acorde TOCANDO NAQUELE momento)
+# usadas pra escolher as notas do solo - graus indexam essas listas, entao a
+# "lick" se transpoe sozinha conforme os acordes mudam.
+_MAJOR      = [0, 2, 4, 5, 7, 9, 11, 12]
+_DORIAN     = [0, 2, 3, 5, 7, 9, 10, 12]
+_MIXOLYDIAN = [0, 2, 4, 5, 7, 9, 10, 12]
+_BLUES      = [0, 3, 5, 6, 7, 10, 12]
+
+# Cada fase tem sua PROPRIA frase melodica ("lick"): uma escala e uma lista de
+# (inicio_em_batidas, duracao_em_batidas, grau_na_escala). Sem isso, mesmo com
+# acordes/instrumentos diferentes, todo solo saia com o MESMO contorno (so
+# arpejar 3a-5a-7a-3a do acorde) - e e o contorno ritmico/melodico, nao so o
+# timbre, que faz cada fase soar como uma musica DIFERENTE de verdade.
+STYLE_LICKS = {
+    # 1945: corrida rapida de escala, sobe e desce - a "cascata" bebop classica.
+    "bebop45": {"scale": _MAJOR, "notes": [
+        (0.0, 0.25, 4), (0.25, 0.25, 3), (0.5, 0.25, 2), (0.75, 0.25, 1),
+        (1.0, 0.25, 0), (1.25, 0.25, 2), (1.5, 0.5, 4)]},
+    # 1953: mais errante e angular, com um salto grande no fim.
+    "bebop53": {"scale": _MAJOR, "notes": [
+        (0.0, 0.2, 2), (0.2, 0.2, 4), (0.4, 0.2, 6), (0.6, 0.2, 5),
+        (0.8, 0.2, 4), (1.0, 0.4, 2), (1.4, 0.6, 0)]},
+    # 1955: legato, larga e relaxada - so 2 notas longas por acorde.
+    "liveswing55": {"scale": _MAJOR, "notes": [(0.0, 0.9, 4), (1.0, 0.9, 2)]},
+    # 1956: nota curta repetida e saltitante - o "lilt" calypso.
+    "calypsohard56": {"scale": _MIXOLYDIAN, "notes": [
+        (0.0, 0.3, 0), (0.5, 0.3, 0), (1.0, 0.3, 2), (1.5, 0.4, 0)]},
+    # 1957: frase de blues com espaco entre as notas (call and response).
+    "bluesyhard57": {"scale": _BLUES, "notes": [
+        (0.0, 0.6, 3), (0.75, 0.4, 2), (1.5, 0.4, 0)]},
+    # 1959: modal e esparso - uma nota quase sustentada o acorde (5 batidas) inteiro.
+    "goldenyear59": {"scale": _DORIAN, "notes": [(0.0, 3.5, 2), (4.0, 0.8, 4)]},
+    # 1964: gentil, sincopada no "e" do tempo 2 (fraseado tipico da bossa).
+    "bossa64": {"scale": _MAJOR, "notes": [
+        (0.0, 0.6, 4), (0.75, 0.5, 2), (1.5, 0.4, 0)]},
+    # 1965: motivo curto de 2 notas repetido insistentemente - o vamp devocional.
+    "spiritual65": {"scale": _DORIAN, "notes": [
+        (0.0, 0.4, 0), (0.5, 0.4, 2), (1.0, 0.4, 0), (1.5, 0.4, 2),
+        (2.0, 0.4, 3), (2.5, 0.4, 2), (3.0, 0.4, 0), (3.5, 0.4, 2)]},
+    # 1969: ambiente - uma unica nota sustentada quase o acorde (8 batidas) inteiro.
+    "fusion69": {"scale": _MAJOR, "notes": [(0.0, 7.0, 4)]},
+    # 1973: staccato sincopado, casando com o groove picado do funk_riff do baixo.
+    "jazzfunk73": {"scale": _DORIAN, "notes": [
+        (0.0, 0.25, 0), (0.75, 0.25, 3), (1.5, 0.25, 5), (2.25, 0.25, 3),
+        (3.0, 0.25, 0), (3.5, 0.25, 5)]},
+}
+
 
 def _mix(master, layer, offset_samples):
     for i, v in enumerate(layer):
@@ -353,20 +400,21 @@ def _apply_comp(master, kind, chord, start, beat, beats):
                                  detune=0.003), start)
 
 
-def _apply_lead(master, instrument, chord, start, beat, beats):
-    """Uma frase melodica curta por cima do acorde, tocada por um sax ou
+def _apply_lead(master, instrument, chord, start, beat, beats, lick):
+    """A frase melodica PROPRIA da fase (ver STYLE_LICKS), tocada por um sax ou
     trompete (harmonicos ricos + vibrato, bem diferente do acompanhamento) -
-    e o que faz soar como uma banda tocando de verdade, nao so uma sequencia
-    de acordes com baixo e bateria por baixo."""
+    e o que faz cada fase soar como uma musica DIFERENTE de verdade, nao so o
+    mesmo arpejo generico com outro timbre por cima."""
     voice = LEAD_VOICES[instrument]
-    tones = chord["pad"]   # 3a, 5a, 7a do proprio acorde - usadas como "escala" do solo
-    lead_notes = [tones[0] + 12, tones[1] + 12, tones[2] + 12, tones[0] + 12]
-    n_notes = 2 if beats <= 3 else 3
-    step = beats / n_notes
-    for i in range(n_notes):
-        note = lead_notes[i % len(lead_notes)]
-        dur = beat * step * 0.88
-        off = start + int(i * step * beat * SAMPLE_RATE)
+    scale = lick["scale"]
+    root = chord["root"] + 12   # oitava do solista, acima do resto do acompanhamento
+    for beat_off, note_beats, degree in lick["notes"]:
+        if beat_off >= beats:
+            continue
+        note_beats = min(note_beats, beats - beat_off)
+        note = root + scale[degree % len(scale)]
+        dur = beat * note_beats * 0.9
+        off = start + int(beat_off * beat * SAMPLE_RATE)
         _mix(master, _voice(_note_freq(note), dur, voice["harmonics"], amp=voice["amp"],
                              attack=voice["attack"], sustain=True, release=voice["release"],
                              vibrato=voice["vibrato"], noise_attack=voice["noise_attack"],
@@ -420,9 +468,9 @@ def _apply_drums(master, kind, start, beat, beats, swing_long):
             _mix(master, _noise_burst(0.025, amp=0.06), start + int(b * beat * 0.5 * SAMPLE_RATE))
 
 
-def _compose(profile):
-    """Motor generico: monta baixo + acompanhamento + bateria em cima da
-    'progression' do perfil, seguindo o andamento (bpm) e o swing dele."""
+def _compose(profile, lick):
+    """Motor generico: monta baixo + acompanhamento + bateria + solo em cima
+    da 'progression' do perfil, seguindo o andamento (bpm) e o swing dele."""
     bpm = profile["bpm"]
     beat = 60.0 / bpm
     swing = profile.get("swing", True)
@@ -439,7 +487,7 @@ def _compose(profile):
         _apply_comp(master, profile["comp"], chord, start, beat, beats)
         _apply_bass(master, profile["bass"], chord, start, beat, beats)
         _apply_drums(master, profile["drum"], start, beat, beats, swing_long)
-        _apply_lead(master, profile["lead"], chord, start, beat, beats)
+        _apply_lead(master, profile["lead"], chord, start, beat, beats, lick)
         cursor_beats += beats
 
     avg_chord_dur = beat * (total_beats / len(progression))
@@ -449,7 +497,7 @@ def _compose(profile):
 try:
     _TRACKS = {}
     for _style, _profile in STYLE_PROFILES.items():
-        _samples, _beat, _chord_dur = _compose(_profile)
+        _samples, _beat, _chord_dur = _compose(_profile, STYLE_LICKS[_style])
         _TRACKS[_style] = {"sound": _to_sound(_samples), "beat": _beat, "chord_dur": _chord_dur}
 except Exception:
     # Sem audio disponivel no sistema - o jogo segue em silencio.
