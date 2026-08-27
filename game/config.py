@@ -96,6 +96,8 @@ WORLDS = {
         "tagline": "O mundo que so toca jazz.",
         "music": "jazzy",
         "color": (206, 138, 58),   # tom de latao/saxofone
+        # Icones que ficam girando ao redor do portal na selecao de mundo.
+        "orbit_icons": ["saxophone", "piano", "trumpet", "drum"],
         # Pontuacao alvo de cada nivel (indice 0 = nivel 1).
         "levels": [10, 15, 22, 30, 40, 50, 62, 75, 90, 110],
     },

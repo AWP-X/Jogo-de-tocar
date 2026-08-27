@@ -259,6 +259,29 @@ def draw_enter_name(run, dt):
                        center=True, color=config.TEXT_MUTED)
 
 
+def _orbit_items(center, radius, t, icons, speed=0.7):
+    """Posicoes dos icones girando ao redor de um orbe, numa orbita elipsada
+    (achatada na vertical) pra parecer visto de um leve angulo - cada um
+    tambem devolve sua 'profundidade' (>0 na frente do orbe, <0 atras)."""
+    cx, cy = center
+    n = len(icons)
+    items = []
+    for i, name in enumerate(icons):
+        angle = t * speed + i * (2 * math.pi / n)
+        depth = math.sin(angle)   # -1 (bem atras) .. 1 (bem na frente)
+        x = cx + math.cos(angle) * radius
+        y = cy + depth * radius * 0.45
+        size = 22 + depth * 7
+        items.append((name, (x, y), depth, size))
+    return items
+
+
+def _draw_orbit(center, radius, t, icons, behind):
+    for name, pos, depth, size in _orbit_items(center, radius, t, icons):
+        if (depth < 0) == behind:
+            visuals.draw_stage_icon(name, pos, size)
+
+
 def draw_world_select(mouse_pos, dt):
     canvas.blit(visuals.MENU_BG_SURF, (0, 0))
     visuals.update_particles(dt)
@@ -268,8 +291,10 @@ def draw_world_select(mouse_pos, dt):
     visuals.draw_text("Escolha um mundo", display.font_small, config.WIDTH // 2, 135,
                        center=True, color=config.TEXT_MUTED)
 
+    t = pygame.time.get_ticks() / 1000.0
     positions = layout.world_slot_positions()
     r = layout.WORLD_ORB_RADIUS
+    orbit_r = r + 22
     idx = 0
     for i, (cx, cy) in enumerate(positions):
         if i < len(config.WORLD_ORDER):
@@ -279,7 +304,12 @@ def draw_world_select(mouse_pos, dt):
             rect = pygame.Rect(int(cx - r), int(cy - r), r * 2, r * 2)
             hovering = rect.collidepoint(mouse_pos) or (idx == state.nav_index)
             hover_t = visuals.hover_progress_for(key, hovering, dt)
+
+            icons = world.get("orbit_icons", [])
+            _draw_orbit((cx, cy), orbit_r, t, icons, behind=True)
             _, oy, _ = visuals.draw_world_orb((cx, cy), r, world["color"], mouse_pos, hover_t)
+            _draw_orbit((cx, cy), orbit_r, t, icons, behind=False)
+
             visuals.draw_text(world["name"].upper(), display.font_button, cx, oy, center=True, shadow=True)
             unlocked = state.progress[world_id]["unlocked"]
             total = len(world["levels"])
