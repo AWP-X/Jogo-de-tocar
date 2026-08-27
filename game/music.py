@@ -37,30 +37,62 @@ def _noise_burst(duration, amp=1.0):
     return buf
 
 
+_WAVETABLE_SIZE = 2048
+_wavetable_cache = {}
+
+
+def _harmonic_wavetable(harmonics):
+    """Pre-computa UM PERIODO da soma de harmonicos (todos sao multiplos
+    inteiros da fundamental, entao a soma inteira e periodica) - depois toda
+    nota so precisa fazer uma LEITURA de tabela por amostra (com
+    interpolacao), em vez de somar N senoides do zero a cada amostra. Isso e
+    o que torna viavel gerar varios instrumentos "ricos" (muitos harmonicos +
+    unison) em Python puro, sem numpy: sem isso, sintetizar as 10 fases levava
+    dezenas de segundos so pra abrir o menu."""
+    key = tuple(harmonics)
+    table = _wavetable_cache.get(key)
+    if table is not None:
+        return table
+    total_h = sum(a for _, a in harmonics)
+    table = [0.0] * _WAVETABLE_SIZE
+    for i in range(_WAVETABLE_SIZE):
+        phase = 2 * math.pi * i / _WAVETABLE_SIZE
+        s = 0.0
+        for mult, hamp in harmonics:
+            s += hamp * math.sin(phase * mult)
+        table[i] = s / total_h
+    _wavetable_cache[key] = table
+    return table
+
+
 def _voice(freq, duration, harmonics, amp=1.0, attack=0.01, decay_rate=3.0,
            vibrato=0.0, noise_attack=0.0, sustain=False, release=0.06,
            detune=0.0, breath=0.0):
-    """Tom com VARIOS harmonicos (em vez de uma senoide pura) - e o que faz
-    soar como um instrumento acustico de verdade tocando, em vez de um "bipe
-    eletronico". Alguns cuidados extras que fazem toda a diferenca:
+    """Tom com VARIOS harmonicos (em vez de uma senoide pura, via wavetable -
+    ver _harmonic_wavetable) - e o que faz soar como um instrumento acustico
+    de verdade tocando, em vez de um "bipe eletronico". Alguns cuidados extras
+    que fazem toda a diferenca:
 
-    - detune: em vez de UMA senoide por harmonico, soma 3 copias levemente
+    - detune: em vez de UMA leitura da tabela, soma 3 copias levemente
       desafinadas entre si (unison). Nenhuma fonte sonora real - corda, coluna
       de ar, martelo - emite uma frequencia perfeitamente estavel; e essa
       pequena "batida" entre vozes quase identicas que o ouvido reconhece como
       "organico" em vez de "gerado por computador".
     - breath: ruido continuo (nao so no ataque) proporcional ao envelope -
-      o "ar" que passa pela palheta/lios de um sopro, presente a nota toda.
+      o "ar" que passa pela palheta/labios de um sopro, presente a nota toda.
     - sustain=True: envelope de sopro (ataque -> patamar sustentado -> solta
       no fim) em vez do decaimento exponencial usado em piano/baixo/violao -
       um sax ou trompete NAO perde volume sozinho no meio de uma nota longa
       como uma corda dedilhada perde; ele so para quando o musico solta o ar.
     """
+    table = _harmonic_wavetable(harmonics)
+    tsize = len(table)
     n = int(SAMPLE_RATE * duration)
     buf = [0.0] * n
-    total_h = sum(a for _, a in harmonics)
     detunes = (0.0, detune, -detune) if detune else (0.0,)
     n_voices = len(detunes)
+    phases = [0.0] * n_voices
+    inc_base = freq / SAMPLE_RATE * tsize
     for i in range(n):
         t = i / SAMPLE_RATE
         if t < attack:
@@ -71,11 +103,17 @@ def _voice(freq, duration, harmonics, amp=1.0, attack=0.01, decay_rate=3.0,
             env = math.exp(-(t - attack) * decay_rate)
         vib = (1.0 + vibrato * math.sin(2 * math.pi * 5.5 * t)) if vibrato else 1.0
         s = 0.0
-        for d in detunes:
-            local_vib = vib * (1.0 + d)
-            for mult, hamp in harmonics:
-                s += hamp * math.sin(2 * math.pi * freq * mult * local_vib * t)
-        s /= (total_h * n_voices)
+        for vi in range(n_voices):
+            inc = inc_base * vib * (1.0 + detunes[vi])
+            ph = phases[vi]
+            idx = int(ph)
+            frac = ph - idx
+            idx %= tsize
+            a0 = table[idx]
+            a1 = table[(idx + 1) % tsize]
+            s += a0 + (a1 - a0) * frac
+            phases[vi] = ph + inc
+        s /= n_voices
         if noise_attack > 0 and t < 0.015:
             s += random.uniform(-1, 1) * noise_attack * (1 - t / 0.015)
         if breath > 0:
