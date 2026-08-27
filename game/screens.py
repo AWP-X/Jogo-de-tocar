@@ -181,9 +181,11 @@ def draw_options(mouse_pos, dt):
                            center=True, color=config.TEXT_MUTED)
         visuals.draw_text("Icones: Feather Icons (MIT) e Twemoji (CC-BY 4.0)", display.font_small,
                            config.WIDTH // 2, 360, center=True, color=config.TEXT_MUTED)
-        visuals.draw_text("Musica do Mundo Jazzy: composta por codigo, 100% original",
+        visuals.draw_text("Musica do Mundo Jazzy: Kevin MacLeod (incompetech.com)",
                            display.font_small, config.WIDTH // 2, 385, center=True, color=config.TEXT_MUTED)
-        visuals.draw_text("Versao 1.0", display.font_small, config.WIDTH // 2, 420,
+        visuals.draw_text("Licenca: Creative Commons Attribution 3.0 (creativecommons.org/licenses/by/3.0)",
+                           display.font_small, config.WIDTH // 2, 410, center=True, color=config.TEXT_MUTED)
+        visuals.draw_text("Versao 1.0", display.font_small, config.WIDTH // 2, 445,
                            center=True, color=config.TEXT_MUTED)
 
     visuals.draw_button(layout.options_voltar_button(), "VOLTAR", mouse_pos, "options_voltar", dt,

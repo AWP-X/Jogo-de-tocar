@@ -115,10 +115,11 @@ OPTIONS_TAB_LABELS = {
 #
 # Dentro do Jazzy, cada FASE e um ano marcante da historia do jazz (em ordem
 # cronologica - a viagem no tempo acompanha a propria curva de dificuldade) e
-# toca um estilo musical ORIGINAL proprio (nunca a gravacao real - so uma
-# composicao inspirada na pegada daquela epoca, ver game/music.py). "year"/
-# "era" sao so texto pra mostrar na tela; "style" e a chave que escolhe qual
-# perfil de composicao usar.
+# toca uma gravacao de jazz REAL, com licenca Creative Commons Attribution
+# (Kevin MacLeod / incompetech.com - credito na aba Opcoes > Creditos; arquivos
+# em assets/music/, ver game/music.py). "year"/"era" sao so texto pra mostrar
+# na tela; "track" e o arquivo de audio da fase; "bpm" e o andamento estimado
+# a partir do audio (usado pelo mecanismo de ritmo - ver music.judge_timing).
 WORLDS = {
     "jazzy": {
         "name": "Jazzy",
@@ -133,25 +134,25 @@ WORLDS = {
         # poucos em vez de todo nivel ser o mesmo inimigo so que mais rapido.
         "levels": [
             {"target": 10,  "enemies": ["chaser"],
-             "year": 1945, "era": "Nascimento do Bebop", "style": "bebop45"},
+             "year": 1945, "era": "Nascimento do Bebop", "track": "1945_faster_does_it.ogg", "bpm": 90.9},
             {"target": 15,  "enemies": ["chaser"],
-             "year": 1953, "era": "O Concerto do Seculo (Massey Hall)", "style": "bebop53"},
+             "year": 1953, "era": "O Concerto do Seculo (Massey Hall)", "track": "1953_acid_trumpet.ogg", "bpm": 111.1},
             {"target": 22,  "enemies": ["chaser", "zigzag"],
-             "year": 1955, "era": "O Renascimento de Miles Davis", "style": "liveswing55"},
+             "year": 1955, "era": "O Renascimento de Miles Davis", "track": "1955_dances_and_dames.ogg", "bpm": 120.0},
             {"target": 30,  "enemies": ["chaser", "zigzag"],
-             "year": 1956, "era": "A Consolidacao do LP", "style": "calypsohard56"},
+             "year": 1956, "era": "A Consolidacao do LP", "track": "1956_i_knew_a_guy.ogg", "bpm": 75.0},
             {"target": 40,  "enemies": ["chaser", "zigzag", "fast"],
-             "year": 1957, "era": "Hard Bop e Blue Note", "style": "bluesyhard57"},
+             "year": 1957, "era": "Hard Bop e Blue Note", "track": "1957_as_i_figure.ogg", "bpm": 80.0},
             {"target": 50,  "enemies": ["chaser", "zigzag", "fast"],
-             "year": 1959, "era": "O Ano de Ouro (Kind of Blue)", "style": "goldenyear59"},
+             "year": 1959, "era": "O Ano de Ouro (Kind of Blue)", "track": "1959_off_to_osaka.ogg", "bpm": 117.6},
             {"target": 62,  "enemies": ["zigzag", "fast"],
-             "year": 1964, "era": "A Explosao da Bossa Nova", "style": "bossa64"},
+             "year": 1964, "era": "A Explosao da Bossa Nova", "track": "1964_blobby_samba.ogg", "bpm": 120.0},
             {"target": 75,  "enemies": ["zigzag", "fast"],
-             "year": 1965, "era": "O Apice do Jazz Espiritual", "style": "spiritual65"},
+             "year": 1965, "era": "O Apice do Jazz Espiritual", "track": "1965_night_on_the_docks_sax.ogg", "bpm": 162.2},
             {"target": 90,  "enemies": ["fast", "zigzag"],
-             "year": 1969, "era": "A Revolucao do Jazz Fusion", "style": "fusion69"},
+             "year": 1969, "era": "A Revolucao do Jazz Fusion", "track": "1969_acidjazz.ogg", "bpm": 111.1},
             {"target": 110, "enemies": ["fast", "zigzag", "chaser"],
-             "year": 1973, "era": "O Jazz-Funk Eletronico", "style": "jazzfunk73"},
+             "year": 1973, "era": "O Jazz-Funk Eletronico", "track": "1973_vibe_ace.ogg", "bpm": 85.7},
         ],
     },
 }
