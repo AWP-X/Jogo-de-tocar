@@ -27,21 +27,6 @@ def _note_freq(midi_number):
     return 440.0 * (2 ** ((midi_number - 69) / 12))
 
 
-def _tone(freq, duration, amp=1.0, attack=0.01):
-    """Nota com ataque rapido e decaimento linear ate o fim - da um efeito de
-    "dedilhado" (baixo/piano), em vez de uma onda que liga e desliga seca."""
-    n = int(SAMPLE_RATE * duration)
-    buf = [0.0] * n
-    for i in range(n):
-        t = i / SAMPLE_RATE
-        if t < attack:
-            env = t / attack
-        else:
-            env = max(0.0, 1 - (t - attack) / max(1e-6, duration - attack))
-        buf[i] = amp * env * math.sin(2 * math.pi * freq * t)
-    return buf
-
-
 def _noise_burst(duration, amp=1.0):
     """Estouro curto de ruido branco, usado como chimbal/caixa (percussao)."""
     n = int(SAMPLE_RATE * duration)
@@ -50,6 +35,73 @@ def _noise_burst(duration, amp=1.0):
         env = max(0.0, 1 - (i / n))
         buf[i] = amp * env * random.uniform(-1, 1)
     return buf
+
+
+def _voice(freq, duration, harmonics, amp=1.0, attack=0.01, decay_rate=3.0,
+           vibrato=0.0, noise_attack=0.0):
+    """Tom com VARIOS harmonicos (em vez da senoide pura de _tone) e decaimento
+    EXPONENCIAL - e o que faz soar como um instrumento acustico de verdade tocando
+    em vez de um "bipe eletronico": nenhum instrumento real emite uma onda
+    perfeitamente pura, e o decaimento de uma nota de piano/baixo/sopro nunca e
+    uma rampa reta ate zero, e sim uma curva que cai rapido no comeco e devagar
+    depois.
+
+    harmonics: lista de (multiplicador_da_frequencia, amplitude_relativa) -
+    ex.: [(1, 1.0), (2, 0.5)] soma a fundamental com o dobro dela na metade do
+    volume. vibrato: oscilacao leve de altura (comum em sopros como sax/
+    trompete). noise_attack: mistura um pouco de ruido so no ataque, pro
+    transiente soar como o "toque" do martelo do piano ou a "mordida" da
+    palheta, em vez de comecar seco."""
+    n = int(SAMPLE_RATE * duration)
+    buf = [0.0] * n
+    total_h = sum(a for _, a in harmonics)
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        if t < attack:
+            env = t / attack
+        else:
+            env = math.exp(-(t - attack) * decay_rate)
+        vib = (1.0 + vibrato * math.sin(2 * math.pi * 5.5 * t)) if vibrato else 1.0
+        s = 0.0
+        for mult, hamp in harmonics:
+            s += hamp * math.sin(2 * math.pi * freq * mult * vib * t)
+        s /= total_h
+        if noise_attack > 0 and t < 0.015:
+            s += random.uniform(-1, 1) * noise_attack * (1 - t / 0.015)
+        buf[i] = amp * env * s
+    return buf
+
+
+def _kick(duration=0.15, amp=0.45):
+    """Bumbo com envelope de altura (comeca mais agudo e cai rapido pro grave)
+    - o "thump" caracteristico de um bumbo de verdade, em vez de um tom fixo."""
+    n = int(SAMPLE_RATE * duration)
+    buf = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        freq = 45 + 120 * math.exp(-t * 18)
+        env = math.exp(-t * 14)
+        buf[i] = amp * env * math.sin(2 * math.pi * freq * t)
+    return buf
+
+
+# Perfis de harmonicos de cada "instrumento" - a diferenca de timbre entre
+# piano/baixo/sax/trompete/violao vem quase toda daqui (quantos harmonicos tem
+# e o peso de cada um), nao de um efeito especial.
+PIANO_HARMONICS         = [(1, 1.0), (2, 0.55), (3, 0.30), (4, 0.18), (5, 0.10), (6, 0.06)]
+ELECTRIC_PIANO_HARMONICS = [(1, 1.0), (2, 0.35), (4, 0.12)]   # Rhodes-like, mais redondo/sininho (fusion)
+GUITAR_HARMONICS        = [(1, 1.0), (2, 0.5), (3, 0.25), (4, 0.1)]
+BASS_HARMONICS          = [(1, 1.0), (2, 0.30), (3, 0.10)]
+ELECTRIC_BASS_HARMONICS = [(1, 1.0), (2, 0.5), (3, 0.25), (4, 0.12)]
+SAX_HARMONICS           = [(1, 1.0), (2, 0.65), (3, 0.55), (4, 0.35), (5, 0.22), (6, 0.14), (7, 0.08)]
+TRUMPET_HARMONICS       = [(1, 1.0), (2, 0.75), (3, 0.6), (4, 0.45), (5, 0.30), (6, 0.18)]
+
+LEAD_VOICES = {
+    "sax":     {"harmonics": SAX_HARMONICS, "attack": 0.035, "decay_rate": 1.1,
+                "vibrato": 0.006, "noise_attack": 0.10},
+    "trumpet": {"harmonics": TRUMPET_HARMONICS, "attack": 0.015, "decay_rate": 1.4,
+                "vibrato": 0.004, "noise_attack": 0.05},
+}
 
 
 def _mix(master, layer, offset_samples):
@@ -98,19 +150,19 @@ def _deg(semitones, quality):
 # sendo sempre um pulso regular de quarter-note - ver _apply_bass "ostinato5").
 STYLE_PROFILES = {
     "bebop45": {   # 1945 - Nascimento do Bebop: rapido, harmonia em cascata (I-vi-ii-V)
-        "bpm": 200, "swing": True,
+        "bpm": 200, "swing": True, "lead": "trumpet",
         "bass": "walking", "comp": "stabs", "drum": "swing_fast",
         "progression": [(_deg(0, "maj7"), 2), (_deg(9, "min7"), 2),
                          (_deg(2, "min7"), 2), (_deg(7, "dom7"), 2)],
     },
     "bebop53": {   # 1953 - Massey Hall: bebop ainda mais afiado (ii-V-I-VI7)
-        "bpm": 212, "swing": True,
+        "bpm": 212, "swing": True, "lead": "sax",
         "bass": "walking", "comp": "stabs", "drum": "swing_fast",
         "progression": [(_deg(2, "min7"), 2), (_deg(7, "dom7"), 2),
                          (_deg(0, "maj7"), 2), (_deg(9, "dom7"), 2)],
     },
     "liveswing55": {   # 1955 - Miles em Newport / Concert by the Sea: swing relaxado, ao vivo
-        "bpm": 168, "swing": True,
+        "bpm": 168, "swing": True, "lead": "trumpet",
         "bass": "walking", "comp": "block", "drum": "swing_brush",
         "progression": [(_deg(0, "maj7"), 2), (_deg(5, "maj7"), 2),
                          (_deg(0, "maj7"), 2), (_deg(7, "dom7"), 2),
@@ -118,7 +170,7 @@ STYLE_PROFILES = {
                          (_deg(2, "min7"), 2), (_deg(7, "dom7"), 2)],
     },
     "calypsohard56": {   # 1956 - Saxophone Colossus: hard bop com lilt calypso, sem swing
-        "bpm": 152, "swing": False,
+        "bpm": 152, "swing": False, "lead": "sax",
         "bass": "calypso", "comp": "stabs", "drum": "calypso",
         "progression": [(_deg(0, "dom7"), 2), (_deg(5, "dom7"), 2),
                          (_deg(0, "dom7"), 2), (_deg(5, "dom7"), 2),
@@ -126,7 +178,7 @@ STYLE_PROFILES = {
                          (_deg(5, "dom7"), 2), (_deg(0, "dom7"), 2)],
     },
     "bluesyhard57": {   # 1957 - Blue Train: hard bop enraizado no blues (12 compassos)
-        "bpm": 138, "swing": True,
+        "bpm": 138, "swing": True, "lead": "sax",
         "bass": "walking", "comp": "stabs", "drum": "swing",
         "progression": [(_deg(0, "dom7"), 2), (_deg(0, "dom7"), 2), (_deg(5, "dom7"), 2),
                          (_deg(0, "dom7"), 2), (_deg(5, "dom7"), 2), (_deg(5, "dom7"), 2),
@@ -134,29 +186,29 @@ STYLE_PROFILES = {
                          (_deg(5, "dom7"), 2), (_deg(0, "dom7"), 2), (_deg(7, "dom7"), 2)],
     },
     "goldenyear59": {   # 1959 - Kind of Blue (modal) + Take Five (5/4), num so tributo
-        "bpm": 112, "meter": 5, "swing": True,
+        "bpm": 112, "meter": 5, "swing": True, "lead": "trumpet",
         "bass": "ostinato5", "comp": "sustained", "drum": "five_four",
         "progression": [(_deg(0, "min7"), 5), (_deg(1, "min7"), 5)],
     },
     "bossa64": {   # 1964 - Getz/Gilberto: bossa nova, sincopada e sem swing
-        "bpm": 132, "swing": False,
+        "bpm": 132, "swing": False, "lead": "sax",
         "bass": "bossa", "comp": "arpeggio", "drum": "bossa",
         "progression": [(_deg(2, "min7"), 2), (_deg(7, "dom7"), 2),
                          (_deg(0, "maj7"), 2), (_deg(9, "min7"), 2)],
     },
     "spiritual65": {   # 1965 - A Love Supreme: vamp modal intenso e devocional
-        "bpm": 140, "swing": True,
+        "bpm": 140, "swing": True, "lead": "sax",
         "bass": "pedal_intense", "comp": "quartal", "drum": "swing_intense",
         "progression": [(_deg(0, "min7"), 4), (_deg(3, "min7"), 4),
                          (_deg(0, "min7"), 4), (_deg(5, "min7"), 4)],
     },
     "fusion69": {   # 1969 - In a Silent Way: fusion lento, espacoso, eletrico
-        "bpm": 96, "swing": False,
+        "bpm": 96, "swing": False, "lead": "trumpet",
         "bass": "electric_riff", "comp": "pad", "drum": "ambient_sparse",
         "progression": [(_deg(0, "maj7"), 8), (_deg(5, "maj7"), 8)],
     },
     "jazzfunk73": {   # 1973 - Head Hunters: jazz-funk denso, dancante, sintetico
-        "bpm": 104, "swing": False,
+        "bpm": 104, "swing": False, "lead": "sax",
         "bass": "funk_riff", "comp": "stabs", "drum": "funk",
         "progression": [(_deg(0, "min7"), 4), (_deg(3, "dom7"), 4),
                          (_deg(0, "min7"), 4), (_deg(10, "dom7"), 4)],
@@ -169,30 +221,38 @@ def _apply_bass(master, kind, chord, start, beat, beats):
     root_f = _note_freq(chord["root"])
     fifth_f = _note_freq(chord["fifth"])
     n_beats = int(round(beats))
+    electric = kind in ("electric_riff", "funk_riff")
+    harmonics = ELECTRIC_BASS_HARMONICS if electric else BASS_HARMONICS
+
+    def pluck(freq, dur, amp, attack=0.008, decay_rate=2.0):
+        # decaimento baixo (2ish) = a nota "canta" quase ate o fim do tempo dela,
+        # como um contrabaixo dedilhado, em vez de sumir na metade.
+        return _voice(freq, dur, harmonics, amp=amp, attack=attack, decay_rate=decay_rate,
+                      noise_attack=0.05 if electric else 0.07)
 
     if kind in ("walking", "walking_blues"):
         # Baixo caminhante classico: alterna fundamental/quinta a cada batida.
         for b in range(n_beats):
             f = root_f if b % 2 == 0 else fifth_f
-            _mix(master, _tone(f, beat * 0.9, amp=0.55), start + int(b * beat * SAMPLE_RATE))
+            _mix(master, pluck(f, beat * 0.9, amp=0.5), start + int(b * beat * SAMPLE_RATE))
 
     elif kind == "calypso":
         # Sincopado: acentua o "e" apos o primeiro tempo, sem cair nas batidas certinhas.
-        _mix(master, _tone(root_f, beat * 0.5, amp=0.5), start)
-        _mix(master, _tone(fifth_f, beat * 0.4, amp=0.4), start + int(beat * 1.5 * SAMPLE_RATE))
+        _mix(master, pluck(root_f, beat * 0.5, amp=0.46), start)
+        _mix(master, pluck(fifth_f, beat * 0.4, amp=0.38), start + int(beat * 1.5 * SAMPLE_RATE))
         if n_beats >= 4:
-            _mix(master, _tone(root_f, beat * 0.5, amp=0.5), start + int(beat * 2 * SAMPLE_RATE))
-            _mix(master, _tone(fifth_f, beat * 0.4, amp=0.4), start + int(beat * 3.5 * SAMPLE_RATE))
+            _mix(master, pluck(root_f, beat * 0.5, amp=0.46), start + int(beat * 2 * SAMPLE_RATE))
+            _mix(master, pluck(fifth_f, beat * 0.4, amp=0.38), start + int(beat * 3.5 * SAMPLE_RATE))
 
     elif kind == "pedal":
         # Baixo pedal (drone) sustentado por todo o acorde - som modal, parado no lugar.
-        _mix(master, _tone(root_f, beat * beats * 0.95, amp=0.42, attack=0.08), start)
+        _mix(master, pluck(root_f, beat * beats * 0.95, amp=0.4, attack=0.08, decay_rate=0.9), start)
 
     elif kind == "pedal_intense":
         # Igual ao pedal, mas rearticulado a cada batida (mais tenso/insistente).
         for b in range(n_beats):
             f = root_f if b % 2 == 0 else fifth_f
-            _mix(master, _tone(f, beat * 0.95, amp=0.5, attack=0.01), start + int(b * beat * SAMPLE_RATE))
+            _mix(master, pluck(f, beat * 0.95, amp=0.48, attack=0.01), start + int(b * beat * SAMPLE_RATE))
 
     elif kind == "ostinato5":
         # Riff ORIGINAL de 5 notas (nao cita nenhuma gravacao real) - da o "chao"
@@ -200,34 +260,34 @@ def _apply_bass(master, kind, chord, start, beat, beats):
         pattern = [chord["root"], chord["root"], chord["fifth"], chord["root"], chord["root"] + 5]
         for i in range(n_beats):
             midi = pattern[i % len(pattern)]
-            _mix(master, _tone(_note_freq(midi), beat * 0.85, amp=0.46),
+            _mix(master, pluck(_note_freq(midi), beat * 0.85, amp=0.44),
                  start + int(i * beat * SAMPLE_RATE))
 
     elif kind == "bossa":
         # Bossa nova: nota no tempo 1 e uma sincopada logo antes do "tempo 3".
-        _mix(master, _tone(root_f, beat * 0.7, amp=0.4), start)
+        _mix(master, pluck(root_f, beat * 0.7, amp=0.38), start)
         if n_beats >= 2:
-            _mix(master, _tone(fifth_f, beat * 0.6, amp=0.35), start + int(beat * 1.5 * SAMPLE_RATE))
+            _mix(master, pluck(fifth_f, beat * 0.6, amp=0.33), start + int(beat * 1.5 * SAMPLE_RATE))
 
     elif kind == "electric_riff":
-        # Baixo eletrico esparso e sustentado, com uma leve "mordida" de oitava
-        # (2 senoides proximas) simulando o timbre mais denso de um baixo eletrico.
+        # Baixo eletrico esparso e sustentado - decaimento mais lento que o
+        # upright acustico, timbre com mais harmonicos (ELECTRIC_BASS_HARMONICS).
         for b in range(0, n_beats, 2):
-            _mix(master, _tone(root_f, beat * 1.8, amp=0.42, attack=0.05), start + int(b * beat * SAMPLE_RATE))
-            _mix(master, _tone(root_f * 2, beat * 0.4, amp=0.10), start + int(b * beat * SAMPLE_RATE))
+            _mix(master, pluck(root_f, beat * 1.8, amp=0.4, attack=0.04, decay_rate=1.1),
+                 start + int(b * beat * SAMPLE_RATE))
 
     elif kind == "funk_riff":
-        # Groove sincopado e mais ocupado (16th-feel): fundamental curta e
-        # percussiva com uma oitava "puxando" no contratempo - bem dancante.
+        # Groove sincopado e mais ocupado (16th-feel): notas curtas e percussivas
+        # alternando fundamental e oitava no contratempo - bem dancante.
         pattern_beats = [0.0, 0.75, 1.5, 2.25, 3.0, 3.5]
         for b_off in pattern_beats:
             if b_off < beats:
                 f = root_f if (b_off % 1.5 < 0.8) else root_f * 2
-                _mix(master, _tone(f, beat * 0.3, amp=0.4, attack=0.003),
+                _mix(master, pluck(f, beat * 0.3, amp=0.38, attack=0.003, decay_rate=4.0),
                      start + int(b_off * beat * SAMPLE_RATE))
 
     else:
-        _mix(master, _tone(root_f, beat * 0.9, amp=0.5), start)
+        _mix(master, pluck(root_f, beat * 0.9, amp=0.48), start)
 
 
 def _apply_comp(master, kind, chord, start, beat, beats):
@@ -235,26 +295,60 @@ def _apply_comp(master, kind, chord, start, beat, beats):
     dur = beat * beats
 
     if kind == "stabs":
-        # Acordes curtos e picados no tempo 1 e no "e" do tempo 2 (comping bebop).
+        # Piano: acordes curtos e picados no tempo 1 e no "e" do tempo 2 (comping
+        # bebop) - decaimento rapido (decay_rate alto) + toque de ruido no
+        # ataque simulando o martelo batendo na corda.
         for tone in pad:
-            _mix(master, _tone(_note_freq(tone), beat * 0.25, amp=0.12, attack=0.005), start)
+            _mix(master, _voice(_note_freq(tone), beat * 0.4, PIANO_HARMONICS, amp=0.13,
+                                 attack=0.004, decay_rate=9.0, noise_attack=0.05), start)
         if beats >= 2:
             off = start + int(beat * 1.5 * SAMPLE_RATE)
             for tone in pad:
-                _mix(master, _tone(_note_freq(tone), beat * 0.25, amp=0.10, attack=0.005), off)
+                _mix(master, _voice(_note_freq(tone), beat * 0.4, PIANO_HARMONICS, amp=0.11,
+                                     attack=0.004, decay_rate=9.0, noise_attack=0.05), off)
 
     elif kind == "arpeggio":
-        # Violao bossa: acorde quebrado, uma nota de cada vez.
+        # Violao bossa: acorde quebrado, uma nota de cada vez, com o "biting"
+        # inicial da unha/palheta (noise_attack) e decaimento de corda dedilhada.
         step = dur / max(1, len(pad))
         for i, tone in enumerate(pad):
-            _mix(master, _tone(_note_freq(tone), step * 0.9, amp=0.11, attack=0.02),
+            _mix(master, _voice(_note_freq(tone), step * 0.95, GUITAR_HARMONICS, amp=0.12,
+                                 attack=0.006, decay_rate=2.6, noise_attack=0.08),
                  start + int(i * step * SAMPLE_RATE))
 
     else:
-        amp = {"block": 0.11, "sustained": 0.10, "quartal": 0.13, "pad": 0.09}.get(kind, 0.10)
+        # Piano sustentado (ou Rhodes eletrico no "pad", usado so no fusion) -
+        # decaimento lento pra soar como o acorde ficando "pendurado" no ar.
+        params = {
+            "block":     (PIANO_HARMONICS, 0.12, 1.3),
+            "sustained": (PIANO_HARMONICS, 0.11, 1.0),
+            "quartal":   (PIANO_HARMONICS, 0.14, 1.1),
+            "pad":       (ELECTRIC_PIANO_HARMONICS, 0.10, 0.7),
+        }
+        harmonics, amp, decay_rate = params.get(kind, (PIANO_HARMONICS, 0.11, 1.2))
         attack = 0.15 if kind == "pad" else 0.05
         for tone in pad:
-            _mix(master, _tone(_note_freq(tone), dur * 0.95, amp=amp, attack=attack), start)
+            _mix(master, _voice(_note_freq(tone), dur * 0.95, harmonics, amp=amp,
+                                 attack=attack, decay_rate=decay_rate, noise_attack=0.03), start)
+
+
+def _apply_lead(master, instrument, chord, start, beat, beats):
+    """Uma frase melodica curta por cima do acorde, tocada por um sax ou
+    trompete (harmonicos ricos + vibrato, bem diferente do acompanhamento) -
+    e o que faz soar como uma banda tocando de verdade, nao so uma sequencia
+    de acordes com baixo e bateria por baixo."""
+    voice = LEAD_VOICES[instrument]
+    tones = chord["pad"]   # 3a, 5a, 7a do proprio acorde - usadas como "escala" do solo
+    lead_notes = [tones[0] + 12, tones[1] + 12, tones[2] + 12, tones[0] + 12]
+    n_notes = 2 if beats <= 3 else 3
+    step = beats / n_notes
+    for i in range(n_notes):
+        note = lead_notes[i % len(lead_notes)]
+        dur = beat * step * 0.85
+        off = start + int(i * step * beat * SAMPLE_RATE)
+        _mix(master, _voice(_note_freq(note), dur, voice["harmonics"], amp=0.15,
+                             attack=voice["attack"], decay_rate=voice["decay_rate"],
+                             vibrato=voice["vibrato"], noise_attack=voice["noise_attack"]), off)
 
 
 def _apply_drums(master, kind, start, beat, beats, swing_long):
@@ -268,7 +362,7 @@ def _apply_drums(master, kind, start, beat, beats, swing_long):
             _mix(master, _noise_burst(0.05, amp=amp), off)
             _mix(master, _noise_burst(0.04, amp=amp * 0.7), off + int(swing_long * SAMPLE_RATE))
         if kind in ("swing_fast", "swing_intense"):
-            _mix(master, _tone(60, 0.15, amp=0.45, attack=0.002), start)   # bumbo no tempo 1
+            _mix(master, _kick(amp=0.45), start)   # bumbo no tempo 1
 
     elif kind == "calypso":
         for b in range(n_beats):
@@ -288,7 +382,7 @@ def _apply_drums(master, kind, start, beat, beats, swing_long):
 
     elif kind == "ambient_sparse":
         # So um bumbo abafado no tempo 1 de cada acorde - clima espacoso, sem chimbal.
-        _mix(master, _tone(55, 0.3, amp=0.3, attack=0.02), start)
+        _mix(master, _kick(duration=0.3, amp=0.3), start)
 
     elif kind == "funk":
         # Bumbo/caixa sincopados + chimbal reto em oitavas - groove denso e dancante.
@@ -296,7 +390,7 @@ def _apply_drums(master, kind, start, beat, beats, swing_long):
         snare_beats = [1.0, 3.0]
         for kb in kick_beats:
             if kb < beats:
-                _mix(master, _tone(58, 0.12, amp=0.42, attack=0.002), start + int(kb * beat * SAMPLE_RATE))
+                _mix(master, _kick(amp=0.42), start + int(kb * beat * SAMPLE_RATE))
         for sb in snare_beats:
             if sb < beats:
                 _mix(master, _noise_burst(0.08, amp=0.17), start + int(sb * beat * SAMPLE_RATE))
@@ -323,6 +417,7 @@ def _compose(profile):
         _apply_comp(master, profile["comp"], chord, start, beat, beats)
         _apply_bass(master, profile["bass"], chord, start, beat, beats)
         _apply_drums(master, profile["drum"], start, beat, beats, swing_long)
+        _apply_lead(master, profile["lead"], chord, start, beat, beats)
         cursor_beats += beats
 
     avg_chord_dur = beat * (total_beats / len(progression))
