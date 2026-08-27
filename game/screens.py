@@ -264,21 +264,66 @@ def draw_world_select(mouse_pos, dt):
     visuals.update_particles(dt)
     visuals.draw_particles(canvas)
 
-    visuals.draw_text("MODO HISTORIA", display.font_big, config.WIDTH // 2, 100, center=True, shadow=True)
-    visuals.draw_text("Escolha um mundo", display.font_small, config.WIDTH // 2, 150,
+    visuals.draw_text("MODO HISTORIA", display.font_big, config.WIDTH // 2, 90, center=True, shadow=True)
+    visuals.draw_text("Escolha um mundo", display.font_small, config.WIDTH // 2, 135,
                        center=True, color=config.TEXT_MUTED)
 
+    positions = layout.world_slot_positions()
+    r = layout.WORLD_ORB_RADIUS
     idx = 0
-    for world_id, rect in layout.world_buttons().items():
-        world = config.WORLDS[world_id]
-        unlocked = state.progress[world_id]["unlocked"]
-        total = len(world["levels"])
-        label = f"{world['name'].upper()}  ({unlocked}/{total})"
-        visuals.draw_button(rect, label, mouse_pos, f"world_{world_id}", dt, focused=(idx == state.nav_index))
-        idx += 1
+    for i, (cx, cy) in enumerate(positions):
+        if i < len(config.WORLD_ORDER):
+            world_id = config.WORLD_ORDER[i]
+            world = config.WORLDS[world_id]
+            key = f"world_{world_id}"
+            rect = pygame.Rect(int(cx - r), int(cy - r), r * 2, r * 2)
+            hovering = rect.collidepoint(mouse_pos) or (idx == state.nav_index)
+            hover_t = visuals.hover_progress_for(key, hovering, dt)
+            _, oy, _ = visuals.draw_world_orb((cx, cy), r, world["color"], mouse_pos, hover_t)
+            visuals.draw_text(world["name"].upper(), display.font_button, cx, oy, center=True, shadow=True)
+            unlocked = state.progress[world_id]["unlocked"]
+            total = len(world["levels"])
+            visuals.draw_text(f"{unlocked}/{total}", display.font_small, cx, oy + r + 26,
+                               center=True, color=config.TEXT_MUTED)
+            idx += 1
+        else:
+            visuals.draw_world_orb((cx, cy), r, (60, 60, 72), mouse_pos, 0.0, locked=True)
+            visuals.draw_text("?", display.font_title, cx, cy, center=True, color=config.TEXT_MUTED)
+            visuals.draw_text("EM BREVE", display.font_small, cx, cy + r + 26,
+                               center=True, color=config.TEXT_MUTED)
 
     visuals.draw_button(layout.historia_voltar_button(), "VOLTAR", mouse_pos, "world_voltar", dt,
                          focused=(idx == state.nav_index))
+
+    if state.portal_transition is not None:
+        draw_portal_wipe(dt)
+
+
+def draw_portal_wipe(dt):
+    """Animacao de 'entrar no mundo': o orbe clicado se expande ate cobrir a
+    tela (fase 1), depois o nome do mundo aparece por cima (fase 2), e ai
+    troca pra selecao de nivel."""
+    trans = state.portal_transition
+    t = min(1.0, trans["t"] / state.PORTAL_DURATION)
+
+    EXPAND_FRACTION = 0.7   # 70% do tempo pra crescer, 30% pro texto aparecer
+    expand_t = min(1.0, t / EXPAND_FRACTION)
+    eased = expand_t * expand_t * (3 - 2 * expand_t)   # smoothstep: comeca e termina suave
+
+    cx, cy = trans["center"]
+    corners = ((0, 0), (config.WIDTH, 0), (0, config.HEIGHT), (config.WIDTH, config.HEIGHT))
+    max_r = max(math.hypot(cx - x, cy - y) for x, y in corners)
+    r = trans["start_r"] + (max_r - trans["start_r"]) * eased
+
+    world = config.WORLDS[state.current_world]
+    overlay = pygame.Surface((config.WIDTH, config.HEIGHT), pygame.SRCALPHA)
+    pygame.draw.circle(overlay, (*world["color"], 255), trans["center"], int(r))
+    canvas.blit(overlay, (0, 0))
+
+    if t > EXPAND_FRACTION:
+        alpha = int(255 * (t - EXPAND_FRACTION) / (1 - EXPAND_FRACTION))
+        visuals.draw_text(world["name"].upper(), display.font_title, config.WIDTH // 2, config.HEIGHT // 2,
+                           center=True, color=config.WHITE, alpha=alpha)
 
 
 def draw_level_select(mouse_pos, dt):
@@ -289,18 +334,35 @@ def draw_level_select(mouse_pos, dt):
     world = config.WORLDS[state.current_world]
     unlocked = state.progress[state.current_world]["unlocked"]
 
-    visuals.draw_text(f"MUNDO: {world['name'].upper()}", display.font_big, config.WIDTH // 2, 90,
+    visuals.draw_text(f"MUNDO: {world['name'].upper()}", display.font_big, config.WIDTH // 2, 70,
                        center=True, shadow=True)
-    visuals.draw_text("Escolha um nivel", display.font_small, config.WIDTH // 2, 135,
+    visuals.draw_text("Escolha um nivel", display.font_small, config.WIDTH // 2, 112,
                        center=True, color=config.TEXT_MUTED)
+
+    positions = layout.level_path_positions(state.current_world)
+    r = layout.LEVEL_ORB_RADIUS
+
+    # Trilha conectando os niveis - acesa nos trechos ja percorridos.
+    for i in range(len(positions) - 1):
+        color = world["color"] if (i + 2) <= unlocked else config.SLIDER_BG
+        pygame.draw.line(canvas, color, positions[i], positions[i + 1], 6)
 
     idx = 0
     for level_num, rect in layout.level_select_buttons(state.current_world).items():
-        target = world["levels"][level_num - 1]
+        pos = positions[level_num - 1]
         is_unlocked = level_num <= unlocked
-        label = f"NIVEL {level_num}: {target}pts" if is_unlocked else "BLOQUEADO"
-        visuals.draw_button(rect, label, mouse_pos, f"level_{level_num}", dt,
-                             enabled=is_unlocked, focused=(idx == state.nav_index))
+        key = f"level_{level_num}"
+        hovering = is_unlocked and (rect.collidepoint(mouse_pos) or idx == state.nav_index)
+        hover_t = visuals.hover_progress_for(key, hovering, dt, play_sound=is_unlocked)
+
+        _, oy, _ = visuals.draw_world_orb(pos, r, world["color"], mouse_pos, hover_t, locked=not is_unlocked)
+        if is_unlocked:
+            visuals.draw_text(str(level_num), display.font_big, pos[0], oy, center=True, shadow=True)
+            target = world["levels"][level_num - 1]
+            visuals.draw_text(f"{target}pts", display.font_small, pos[0], oy + r + 20,
+                               center=True, color=config.TEXT_MUTED)
+        else:
+            visuals.draw_lock_icon(pos, r * 0.45, config.TEXT_MUTED)
         idx += 1
 
     visuals.draw_button(layout.historia_voltar_button(), "VOLTAR", mouse_pos, "level_voltar", dt,

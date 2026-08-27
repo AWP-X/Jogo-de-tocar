@@ -24,32 +24,63 @@ def difficulty_button():
     return pygame.Rect(x, y, w, h)
 
 
-# ---- Modo Historia: selecao de mundo e de nivel ----
+# ---- Modo Historia: selecao de mundo (portais circulares) e de nivel (trilha) ----
 def historia_voltar_button():
-    return pygame.Rect(config.WIDTH // 2 - 150, 620, 300, 50)
+    return pygame.Rect(config.WIDTH // 2 - 150, 655, 300, 50)
+
+
+WORLD_SLOTS = 8      # quantos "portais" aparecem na grade (os que sobram sao so "em breve")
+WORLD_ORB_RADIUS = 68
+
+
+def world_slot_positions():
+    """Posicoes fixas dos WORLD_SLOTS circulos (grade 4x2), independente de
+    quantos mundos ja existem de verdade - os excedentes viram '?' de bloqueado."""
+    cols, rows = 4, 2
+    r = WORLD_ORB_RADIUS
+    gap_x, gap_y = 70, 80
+    grid_w = cols * (r * 2) + (cols - 1) * gap_x
+    grid_h = rows * (r * 2) + (rows - 1) * gap_y
+    x0 = config.WIDTH // 2 - grid_w // 2 + r
+    y0 = config.HEIGHT // 2 - grid_h // 2 + r + 10
+    return [(x0 + col * (r * 2 + gap_x), y0 + row * (r * 2 + gap_y))
+            for row in range(rows) for col in range(cols)]
 
 
 def world_buttons():
-    w, h, gap = 320, 100, 24
-    x = config.WIDTH // 2 - w // 2
-    y0 = 240
-    return {wid: pygame.Rect(x, y0 + i * (h + gap), w, h) for i, wid in enumerate(config.WORLD_ORDER)}
+    """So os mundos DE VERDADE (focaveis/clicaveis) - os slots vazios sao
+    apenas decorativos e desenhados a parte em screens.draw_world_select."""
+    positions = world_slot_positions()
+    r = WORLD_ORB_RADIUS
+    return {wid: pygame.Rect(int(cx - r), int(cy - r), r * 2, r * 2)
+            for wid, (cx, cy) in zip(config.WORLD_ORDER, positions)}
+
+
+LEVEL_ORB_RADIUS = 52
+
+
+def level_path_positions(world_id):
+    """Posicoes dos nos de nivel numa trilha em zigue-zague (tipo mapa de fases)."""
+    total = len(config.WORLDS[world_id]["levels"])
+    cols = 5
+    col_w = 220
+    x0 = config.WIDTH // 2 - (cols - 1) * col_w // 2
+    y_bottom, y_top = 540, 290
+    positions = []
+    for i in range(total):
+        row, col = divmod(i, cols)
+        going_right = (row % 2 == 0)
+        display_col = col if going_right else (cols - 1 - col)
+        x = x0 + display_col * col_w
+        y = y_bottom if row % 2 == 0 else y_top
+        positions.append((x, y))
+    return positions
 
 
 def level_select_buttons(world_id):
-    total = len(config.WORLDS[world_id]["levels"])
-    cols = 5
-    w, h, gap = 180, 90, 20
-    grid_w = cols * w + (cols - 1) * gap
-    x0 = config.WIDTH // 2 - grid_w // 2
-    y0 = 230
-    buttons = {}
-    for i in range(total):
-        row, col = divmod(i, cols)
-        x = x0 + col * (w + gap)
-        y = y0 + row * (h + gap)
-        buttons[i + 1] = pygame.Rect(x, y, w, h)   # chave = numero do nivel (1-indexado)
-    return buttons
+    r = LEVEL_ORB_RADIUS
+    return {i + 1: pygame.Rect(int(x - r), int(y - r), r * 2, r * 2)
+            for i, (x, y) in enumerate(level_path_positions(world_id))}
 
 
 def level_complete_buttons(is_last):

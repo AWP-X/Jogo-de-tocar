@@ -99,6 +99,15 @@ def _lerp_color(c1, c2, t):
     return tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
 
 
+def hover_progress_for(key, hovering, dt, play_sound=True):
+    """Versao publica de _hover_progress, pra elementos customizados (como os
+    orbes de mundo/nivel) que nao passam por draw_button/draw_tab."""
+    if hovering and not _was_hovering.get(key, False) and play_sound:
+        audio.play(audio.hover_sound)
+    _was_hovering[key] = hovering
+    return _hover_progress(key, hovering, dt)
+
+
 # ===================== TEXTO =====================
 def draw_text(text, fnt, x, y, center=False, color=config.WHITE, shadow=False, alpha=None):
     if shadow:
@@ -253,3 +262,91 @@ def draw_slider(value_ratio, x, y, w):
     handle_x = x + fill_w
     pygame.draw.circle(canvas, config.WHITE, (handle_x, y), 9)
     pygame.draw.circle(canvas, config.ACCENT, (handle_x, y), 9, 2)
+
+
+# ===================== ORBES 2.5D (selecao de mundo/nivel) =====================
+_orb_cache = {}
+
+
+def _get_orb_base(radius, color):
+    """Esfera pre-renderizada (sombreada como se a luz viesse de cima-esquerda),
+    cacheada por (raio, cor) - so a posicao do brilho movel muda por frame."""
+    key = (radius, color)
+    surf = _orb_cache.get(key)
+    if surf is not None:
+        return surf
+
+    size = radius * 2
+    surf = pygame.Surface((size, size), pygame.SRCALPHA)
+    pygame.draw.circle(surf, color, (radius, radius), radius)
+
+    # Sombreamento: multiplica por um degrade CINZA OPACO (nunca vaza alpha
+    # pra fora do circulo base, porque BLEND_RGBA_MULT com alpha=0 la fora
+    # continua dando alpha=0).
+    shade = pygame.Surface((size, size), pygame.SRCALPHA)
+    shade.fill((255, 255, 255, 255))
+    hl_center = (int(radius * 0.62), int(radius * 0.58))
+    for rr in range(radius, 0, -2):
+        t = rr / radius
+        gray = int(255 - 120 * t)
+        pygame.draw.circle(shade, (gray, gray, gray, 255), hl_center, rr)
+    surf.blit(shade, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+    # Aro sutil (contra-luz) na borda.
+    pygame.draw.circle(surf, (255, 255, 255, 40), (radius, radius), radius, 3)
+
+    _orb_cache[key] = surf
+    return surf
+
+
+def draw_world_orb(center, radius, color, mouse_pos, hover_t, locked=False):
+    """Portal circular com efeito 2.5D: sombra projetada, esfera sombreada e
+    um brilho que acompanha o mouse (parallax), alem de leve elevacao no hover.
+
+    Devolve (x, y, raio) do centro onde a esfera acabou desenhada - util pra
+    quem quiser escrever um numero/texto por cima, ja ajustado pela elevacao.
+    """
+    cx, cy = center
+    lift = hover_t * 10
+    draw_cy = cy - lift
+    r = int(radius * (1.0 + 0.10 * hover_t))
+
+    # Sombra projetada no "chao" (fixa em cy, nao sobe com o orbe).
+    shadow_w, shadow_h = int(r * 1.5), max(6, int(r * 0.5))
+    shadow = pygame.Surface((shadow_w, shadow_h), pygame.SRCALPHA)
+    pygame.draw.ellipse(shadow, (0, 0, 0, 100), shadow.get_rect())
+    canvas.blit(shadow, (cx - shadow_w // 2, int(cy + radius * 0.55)))
+
+    base_color = (60, 60, 72) if locked else color
+    orb = _get_orb_base(r, base_color)
+    orb_rect = orb.get_rect(center=(int(cx), int(draw_cy)))
+    canvas.blit(orb, orb_rect)
+
+    if not locked:
+        dx, dy = mouse_pos[0] - cx, mouse_pos[1] - draw_cy
+        dist = math.hypot(dx, dy)
+        max_shift = r * 0.2
+        if dist > 1:
+            shift_x = (dx / dist) * min(max_shift, dist * 0.12)
+            shift_y = (dy / dist) * min(max_shift, dist * 0.12)
+        else:
+            shift_x = shift_y = 0.0
+        hl_r = max(2, int(r * 0.22))
+        highlight = pygame.Surface((hl_r * 2, hl_r * 2), pygame.SRCALPHA)
+        pygame.draw.circle(highlight, (255, 255, 255, 90), (hl_r, hl_r), hl_r)
+        hpos = (cx - r * 0.35 + shift_x, draw_cy - r * 0.4 + shift_y)
+        canvas.blit(highlight, highlight.get_rect(center=hpos))
+
+    return (cx, draw_cy, r)
+
+
+def draw_lock_icon(center, size, color):
+    """Cadeado simples desenhado na hora (sem depender de arquivo)."""
+    cx, cy = center
+    size = max(8, int(size))
+    body = pygame.Rect(0, 0, size, int(size * 0.8))
+    body.center = (cx, cy + size * 0.15)
+    pygame.draw.rect(canvas, color, body, border_radius=max(2, int(size * 0.12)))
+    shackle_rect = pygame.Rect(0, 0, int(size * 0.6), int(size * 0.7))
+    shackle_rect.center = (cx, cy - size * 0.15)
+    pygame.draw.arc(canvas, color, shackle_rect, math.pi * 0.05, math.pi * 0.95, max(2, int(size * 0.12)))

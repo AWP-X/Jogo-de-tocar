@@ -49,6 +49,12 @@ name_input = ""  # texto sendo digitado na tela de "novo recorde"
 options_return_to = "menu"
 options_tab = "audio"
 
+# Animacao de "entrar no portal" ao clicar num mundo (None = nao esta rolando).
+# Enquanto ativa, a tela continua em "world_select" - so o desenho e os
+# cliques ficam suspensos ate ela terminar (ai sim troca pra "level_select").
+PORTAL_DURATION = 0.55
+portal_transition = None
+
 # Contexto do Modo Historia: qual mundo/nivel esta selecionado ou em jogo agora.
 current_world = "jazzy"
 current_level = 1   # 1-indexado

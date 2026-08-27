@@ -32,6 +32,9 @@ def main():
         quanto pelo Enter/Espaco do teclado, pra nao duplicar a logica de cada tela."""
         nonlocal current_state, run, running
 
+        if state.portal_transition is not None:
+            return False   # ignora cliques/Enter ate a animacao de entrada terminar
+
         acted = False
 
         if current_state == "menu":
@@ -66,8 +69,10 @@ def main():
             else:
                 for world_id, rect in layout.world_buttons().items():
                     if rect.collidepoint(pos):
+                        # Nao troca de tela ainda - a animacao de "entrar no
+                        # portal" cuida disso quando terminar (ver UPDATE).
                         state.current_world = world_id
-                        current_state = "level_select"
+                        state.portal_transition = {"center": rect.center, "start_r": rect.width // 2, "t": 0.0}
                         acted = True
                         break
 
@@ -293,6 +298,12 @@ def main():
                     0.1, min(3.0, (mouse_pos[0] - config.SLIDER_X) / config.SLIDER_W * 3))
 
         # --------------- UPDATE ---------------
+        if state.portal_transition is not None:
+            state.portal_transition["t"] += dt
+            if state.portal_transition["t"] >= state.PORTAL_DURATION:
+                state.portal_transition = None
+                current_state = "level_select"
+
         attack_pos = None
         if current_state == "playing":
             attack_pos = gameplay.update_gameplay(run, mouse_pos, dt)
