@@ -271,7 +271,7 @@ _orb_cache = {}
 def _get_orb_base(radius, color):
     """Esfera pre-renderizada (sombreada como se a luz viesse de cima-esquerda),
     cacheada por (raio, cor) - so a posicao do brilho movel muda por frame."""
-    key = (radius, color)
+    key = ("sphere", radius, color)
     surf = _orb_cache.get(key)
     if surf is not None:
         return surf
@@ -279,10 +279,18 @@ def _get_orb_base(radius, color):
     size = radius * 2
     surf = pygame.Surface((size, size), pygame.SRCALPHA)
     pygame.draw.circle(surf, color, (radius, radius), radius)
+    _apply_sphere_shading(surf, radius)
 
-    # Sombreamento: multiplica por um degrade CINZA OPACO (nunca vaza alpha
-    # pra fora do circulo base, porque BLEND_RGBA_MULT com alpha=0 la fora
-    # continua dando alpha=0).
+    _orb_cache[key] = surf
+    return surf
+
+
+def _apply_sphere_shading(surf, radius):
+    """Sombreamento (luz vindo de cima-esquerda) + aro de contra-luz, aplicado
+    por cima de qualquer textura circular ja desenhada em `surf`. Multiplica
+    por um degrade CINZA OPACO (nunca vaza alpha pra fora do circulo base,
+    porque BLEND_RGBA_MULT com alpha=0 la fora continua dando alpha=0)."""
+    size = surf.get_width()
     shade = pygame.Surface((size, size), pygame.SRCALPHA)
     shade.fill((255, 255, 255, 255))
     hl_center = (int(radius * 0.62), int(radius * 0.58))
@@ -292,14 +300,54 @@ def _get_orb_base(radius, color):
         pygame.draw.circle(shade, (gray, gray, gray, 255), hl_center, rr)
     surf.blit(shade, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
 
-    # Aro sutil (contra-luz) na borda.
     pygame.draw.circle(surf, (255, 255, 255, 40), (radius, radius), radius, 3)
+
+
+def _get_vinyl_orb_base(radius, label_color):
+    """Disco de vinil: corpo escuro com sulcos concentricos e um rotulo
+    colorido no centro (onde o nome do mundo e escrito por cima, depois)."""
+    key = ("vinyl", radius, label_color)
+    surf = _orb_cache.get(key)
+    if surf is not None:
+        return surf
+
+    size = radius * 2
+    surf = pygame.Surface((size, size), pygame.SRCALPHA)
+    pygame.draw.circle(surf, (22, 20, 24), (radius, radius), radius)
+
+    # Sulcos: aneis finos alternando um tom bem sutil de cinza.
+    groove_start = int(radius * 0.42)
+    for rr in range(radius - 4, groove_start, -3):
+        tone = 34 if (rr // 3) % 2 == 0 else 24
+        pygame.draw.circle(surf, (tone, tone, tone + 3), (radius, radius), rr, 1)
+
+    # Rotulo central (cor do mundo) + furinho.
+    label_r = int(radius * 0.38)
+    pygame.draw.circle(surf, label_color, (radius, radius), label_r)
+    pygame.draw.circle(surf, (20, 20, 24), (radius, radius), max(2, int(radius * 0.05)))
+
+    _apply_sphere_shading(surf, radius)
 
     _orb_cache[key] = surf
     return surf
 
 
-def draw_world_orb(center, radius, color, mouse_pos, hover_t, locked=False):
+def _draw_vinyl_shine(center, r):
+    """Reflexo girando sobre o disco - um traco de luz cruzando o centro que
+    roda com o tempo, dando a sensacao de vinil rodando na vitrola."""
+    cx, cy = center
+    t = pygame.time.get_ticks() / 1000.0
+    angle = t * 1.4
+    width = max(2, int(r * 0.05))
+    shine = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+    for offset in (0, math.pi):
+        a = angle + offset
+        end = (r + math.cos(a) * r * 0.94, r + math.sin(a) * r * 0.94)
+        pygame.draw.line(shine, (255, 255, 255, 45), (r, r), end, width)
+    canvas.blit(shine, (int(cx - r), int(cy - r)))
+
+
+def draw_world_orb(center, radius, color, mouse_pos, hover_t, locked=False, style="sphere"):
     """Portal circular com efeito 2.5D: sombra projetada, esfera sombreada e
     um brilho que acompanha o mouse (parallax), alem de leve elevacao no hover.
 
@@ -317,12 +365,19 @@ def draw_world_orb(center, radius, color, mouse_pos, hover_t, locked=False):
     pygame.draw.ellipse(shadow, (0, 0, 0, 100), shadow.get_rect())
     canvas.blit(shadow, (cx - shadow_w // 2, int(cy + radius * 0.55)))
 
-    base_color = (60, 60, 72) if locked else color
-    orb = _get_orb_base(r, base_color)
+    if locked:
+        orb = _get_orb_base(r, (60, 60, 72))
+    elif style == "vinyl":
+        orb = _get_vinyl_orb_base(r, color)
+    else:
+        orb = _get_orb_base(r, color)
     orb_rect = orb.get_rect(center=(int(cx), int(draw_cy)))
     canvas.blit(orb, orb_rect)
 
     if not locked:
+        if style == "vinyl":
+            _draw_vinyl_shine((cx, draw_cy), r)
+
         dx, dy = mouse_pos[0] - cx, mouse_pos[1] - draw_cy
         dist = math.hypot(dx, dy)
         max_shift = r * 0.2

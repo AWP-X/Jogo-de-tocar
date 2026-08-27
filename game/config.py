@@ -95,7 +95,8 @@ WORLDS = {
         "name": "Jazzy",
         "tagline": "O mundo que so toca jazz.",
         "music": "jazzy",
-        "color": (206, 138, 58),   # tom de latao/saxofone
+        "color": (206, 138, 58),   # tom de latao/saxofone - usado no rotulo do disco
+        "orb_style": "vinyl",      # o portal vira um disco de vinil girando
         # Icones que ficam girando ao redor do portal na selecao de mundo.
         "orbit_icons": ["saxophone", "piano", "trumpet", "drum"],
         # Pontuacao alvo de cada nivel (indice 0 = nivel 1).

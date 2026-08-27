@@ -307,7 +307,8 @@ def draw_world_select(mouse_pos, dt):
 
             icons = world.get("orbit_icons", [])
             _draw_orbit((cx, cy), orbit_r, t, icons, behind=True)
-            _, oy, _ = visuals.draw_world_orb((cx, cy), r, world["color"], mouse_pos, hover_t)
+            _, oy, _ = visuals.draw_world_orb((cx, cy), r, world["color"], mouse_pos, hover_t,
+                                               style=world.get("orb_style", "sphere"))
             _draw_orbit((cx, cy), orbit_r, t, icons, behind=False)
 
             visuals.draw_text(world["name"].upper(), display.font_button, cx, oy, center=True, shadow=True)
