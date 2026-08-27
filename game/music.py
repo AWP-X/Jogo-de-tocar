@@ -38,36 +38,48 @@ def _noise_burst(duration, amp=1.0):
 
 
 def _voice(freq, duration, harmonics, amp=1.0, attack=0.01, decay_rate=3.0,
-           vibrato=0.0, noise_attack=0.0):
-    """Tom com VARIOS harmonicos (em vez da senoide pura de _tone) e decaimento
-    EXPONENCIAL - e o que faz soar como um instrumento acustico de verdade tocando
-    em vez de um "bipe eletronico": nenhum instrumento real emite uma onda
-    perfeitamente pura, e o decaimento de uma nota de piano/baixo/sopro nunca e
-    uma rampa reta ate zero, e sim uma curva que cai rapido no comeco e devagar
-    depois.
+           vibrato=0.0, noise_attack=0.0, sustain=False, release=0.06,
+           detune=0.0, breath=0.0):
+    """Tom com VARIOS harmonicos (em vez de uma senoide pura) - e o que faz
+    soar como um instrumento acustico de verdade tocando, em vez de um "bipe
+    eletronico". Alguns cuidados extras que fazem toda a diferenca:
 
-    harmonics: lista de (multiplicador_da_frequencia, amplitude_relativa) -
-    ex.: [(1, 1.0), (2, 0.5)] soma a fundamental com o dobro dela na metade do
-    volume. vibrato: oscilacao leve de altura (comum em sopros como sax/
-    trompete). noise_attack: mistura um pouco de ruido so no ataque, pro
-    transiente soar como o "toque" do martelo do piano ou a "mordida" da
-    palheta, em vez de comecar seco."""
+    - detune: em vez de UMA senoide por harmonico, soma 3 copias levemente
+      desafinadas entre si (unison). Nenhuma fonte sonora real - corda, coluna
+      de ar, martelo - emite uma frequencia perfeitamente estavel; e essa
+      pequena "batida" entre vozes quase identicas que o ouvido reconhece como
+      "organico" em vez de "gerado por computador".
+    - breath: ruido continuo (nao so no ataque) proporcional ao envelope -
+      o "ar" que passa pela palheta/lios de um sopro, presente a nota toda.
+    - sustain=True: envelope de sopro (ataque -> patamar sustentado -> solta
+      no fim) em vez do decaimento exponencial usado em piano/baixo/violao -
+      um sax ou trompete NAO perde volume sozinho no meio de uma nota longa
+      como uma corda dedilhada perde; ele so para quando o musico solta o ar.
+    """
     n = int(SAMPLE_RATE * duration)
     buf = [0.0] * n
     total_h = sum(a for _, a in harmonics)
+    detunes = (0.0, detune, -detune) if detune else (0.0,)
+    n_voices = len(detunes)
     for i in range(n):
         t = i / SAMPLE_RATE
         if t < attack:
             env = t / attack
+        elif sustain:
+            env = max(0.0, (duration - t) / release) if t > duration - release else 1.0
         else:
             env = math.exp(-(t - attack) * decay_rate)
         vib = (1.0 + vibrato * math.sin(2 * math.pi * 5.5 * t)) if vibrato else 1.0
         s = 0.0
-        for mult, hamp in harmonics:
-            s += hamp * math.sin(2 * math.pi * freq * mult * vib * t)
-        s /= total_h
+        for d in detunes:
+            local_vib = vib * (1.0 + d)
+            for mult, hamp in harmonics:
+                s += hamp * math.sin(2 * math.pi * freq * mult * local_vib * t)
+        s /= (total_h * n_voices)
         if noise_attack > 0 and t < 0.015:
             s += random.uniform(-1, 1) * noise_attack * (1 - t / 0.015)
+        if breath > 0:
+            s += random.uniform(-1, 1) * breath * env
         buf[i] = amp * env * s
     return buf
 
@@ -94,13 +106,20 @@ GUITAR_HARMONICS        = [(1, 1.0), (2, 0.5), (3, 0.25), (4, 0.1)]
 BASS_HARMONICS          = [(1, 1.0), (2, 0.30), (3, 0.10)]
 ELECTRIC_BASS_HARMONICS = [(1, 1.0), (2, 0.5), (3, 0.25), (4, 0.12)]
 SAX_HARMONICS           = [(1, 1.0), (2, 0.65), (3, 0.55), (4, 0.35), (5, 0.22), (6, 0.14), (7, 0.08)]
-TRUMPET_HARMONICS       = [(1, 1.0), (2, 0.75), (3, 0.6), (4, 0.45), (5, 0.30), (6, 0.18)]
+# Trompete: mais harmonicos altos e mais "peso" neles - e um instrumento de
+# metal, o timbre e naturalmente mais brilhante/cortante que o do sax (que e
+# uma palheta de cana em madeira) - com poucos harmonicos altos ele soa fraco
+# e abafado, sem o "corte" caracteristico de um trompete de verdade.
+TRUMPET_HARMONICS       = [(1, 1.0), (2, 0.85), (3, 0.75), (4, 0.6), (5, 0.45), (6, 0.32), (7, 0.20), (8, 0.12)]
 
+# Sopros (sax/trompete): envelope sustentado (nao decaem sozinhos como uma
+# corda), com vibrato, "ar" continuo (breath) e um pequeno unison (detune)
+# pra tirar a limpeza artificial de uma senoide isolada.
 LEAD_VOICES = {
-    "sax":     {"harmonics": SAX_HARMONICS, "attack": 0.035, "decay_rate": 1.1,
-                "vibrato": 0.006, "noise_attack": 0.10},
-    "trumpet": {"harmonics": TRUMPET_HARMONICS, "attack": 0.015, "decay_rate": 1.4,
-                "vibrato": 0.004, "noise_attack": 0.05},
+    "sax":     {"harmonics": SAX_HARMONICS, "attack": 0.035, "release": 0.09,
+                "vibrato": 0.007, "noise_attack": 0.07, "breath": 0.035, "detune": 0.006, "amp": 0.18},
+    "trumpet": {"harmonics": TRUMPET_HARMONICS, "attack": 0.012, "release": 0.05,
+                "vibrato": 0.005, "noise_attack": 0.09, "breath": 0.02, "detune": 0.005, "amp": 0.24},
 }
 
 
@@ -226,9 +245,10 @@ def _apply_bass(master, kind, chord, start, beat, beats):
 
     def pluck(freq, dur, amp, attack=0.008, decay_rate=2.0):
         # decaimento baixo (2ish) = a nota "canta" quase ate o fim do tempo dela,
-        # como um contrabaixo dedilhado, em vez de sumir na metade.
+        # como um contrabaixo dedilhado, em vez de sumir na metade. detune=leve
+        # desafinacao de unissono - nenhuma corda de verdade vibra 100% estavel.
         return _voice(freq, dur, harmonics, amp=amp, attack=attack, decay_rate=decay_rate,
-                      noise_attack=0.05 if electric else 0.07)
+                      noise_attack=0.05 if electric else 0.07, detune=0.004)
 
     if kind in ("walking", "walking_blues"):
         # Baixo caminhante classico: alterna fundamental/quinta a cada batida.
@@ -300,12 +320,12 @@ def _apply_comp(master, kind, chord, start, beat, beats):
         # ataque simulando o martelo batendo na corda.
         for tone in pad:
             _mix(master, _voice(_note_freq(tone), beat * 0.4, PIANO_HARMONICS, amp=0.13,
-                                 attack=0.004, decay_rate=9.0, noise_attack=0.05), start)
+                                 attack=0.004, decay_rate=9.0, noise_attack=0.05, detune=0.003), start)
         if beats >= 2:
             off = start + int(beat * 1.5 * SAMPLE_RATE)
             for tone in pad:
                 _mix(master, _voice(_note_freq(tone), beat * 0.4, PIANO_HARMONICS, amp=0.11,
-                                     attack=0.004, decay_rate=9.0, noise_attack=0.05), off)
+                                     attack=0.004, decay_rate=9.0, noise_attack=0.05, detune=0.003), off)
 
     elif kind == "arpeggio":
         # Violao bossa: acorde quebrado, uma nota de cada vez, com o "biting"
@@ -313,7 +333,7 @@ def _apply_comp(master, kind, chord, start, beat, beats):
         step = dur / max(1, len(pad))
         for i, tone in enumerate(pad):
             _mix(master, _voice(_note_freq(tone), step * 0.95, GUITAR_HARMONICS, amp=0.12,
-                                 attack=0.006, decay_rate=2.6, noise_attack=0.08),
+                                 attack=0.006, decay_rate=2.6, noise_attack=0.08, detune=0.004),
                  start + int(i * step * SAMPLE_RATE))
 
     else:
@@ -329,7 +349,8 @@ def _apply_comp(master, kind, chord, start, beat, beats):
         attack = 0.15 if kind == "pad" else 0.05
         for tone in pad:
             _mix(master, _voice(_note_freq(tone), dur * 0.95, harmonics, amp=amp,
-                                 attack=attack, decay_rate=decay_rate, noise_attack=0.03), start)
+                                 attack=attack, decay_rate=decay_rate, noise_attack=0.03,
+                                 detune=0.003), start)
 
 
 def _apply_lead(master, instrument, chord, start, beat, beats):
@@ -344,11 +365,12 @@ def _apply_lead(master, instrument, chord, start, beat, beats):
     step = beats / n_notes
     for i in range(n_notes):
         note = lead_notes[i % len(lead_notes)]
-        dur = beat * step * 0.85
+        dur = beat * step * 0.88
         off = start + int(i * step * beat * SAMPLE_RATE)
-        _mix(master, _voice(_note_freq(note), dur, voice["harmonics"], amp=0.15,
-                             attack=voice["attack"], decay_rate=voice["decay_rate"],
-                             vibrato=voice["vibrato"], noise_attack=voice["noise_attack"]), off)
+        _mix(master, _voice(_note_freq(note), dur, voice["harmonics"], amp=voice["amp"],
+                             attack=voice["attack"], sustain=True, release=voice["release"],
+                             vibrato=voice["vibrato"], noise_attack=voice["noise_attack"],
+                             breath=voice["breath"], detune=voice["detune"]), off)
 
 
 def _apply_drums(master, kind, start, beat, beats, swing_long):
