@@ -6,6 +6,7 @@ __pycache__/
 settings.json
 highscore.json
 leaderboard.json
+progress.json
 
 # Build do PyInstaller
 build/
