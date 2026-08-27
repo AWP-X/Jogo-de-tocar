@@ -141,7 +141,7 @@ def _load_icon_svgs():
     monocromaticos; Twemoji, CC-BY 4.0, pros instrumentos coloridos do palco
     do Mundo Jazzy) - o pygame consegue rasterizar SVG nativamente. Se o
     arquivo nao existir, o icone so nao aparece."""
-    names = ("play", "settings", "power", "map", "saxophone", "piano", "trumpet", "drum")
+    names = ("play", "settings", "power", "map", "lock", "saxophone", "piano", "trumpet", "drum")
     surfaces = {}
     for name in names:
         try:
@@ -396,12 +396,6 @@ def draw_world_orb(center, radius, color, mouse_pos, hover_t, locked=False, styl
 
 
 def draw_lock_icon(center, size, color):
-    """Cadeado simples desenhado na hora (sem depender de arquivo)."""
-    cx, cy = center
-    size = max(8, int(size))
-    body = pygame.Rect(0, 0, size, int(size * 0.8))
-    body.center = (cx, cy + size * 0.15)
-    pygame.draw.rect(canvas, color, body, border_radius=max(2, int(size * 0.12)))
-    shackle_rect = pygame.Rect(0, 0, int(size * 0.6), int(size * 0.7))
-    shackle_rect.center = (cx, cy - size * 0.15)
-    pygame.draw.arc(canvas, color, shackle_rect, math.pi * 0.05, math.pi * 0.95, max(2, int(size * 0.12)))
+    """Cadeado - agora um icone vetorial de verdade (Feather Icons), tingido
+    na cor pedida do mesmo jeito que os icones de botao."""
+    draw_icon("lock", center, color, size=max(4, int(size * 0.5)))
