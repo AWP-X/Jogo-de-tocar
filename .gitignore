@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+
+# Dados de jogador (gerados em tempo de execucao, nao fazem parte do codigo)
+settings.json
+highscore.json
+leaderboard.json
+
+# Build do PyInstaller
+build/
+dist/
+*.spec
+
+# Backup do arquivo antigo (pre-reorganizacao)
+_legacy/
+
+# Editor
+.vscode/
